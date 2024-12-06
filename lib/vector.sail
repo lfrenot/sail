@@ -299,6 +299,7 @@ val subrange_bits = pure {
   interpreter: "subrange",
   lem: "subrange_vec_dec",
   coq: "subrange_vec_dec",
+  lean: "Sail.BitVec.extractLsb",
   _: "vector_subrange"
 } : forall ('n : Int) ('m : Int) ('o : Int), 0 <= 'o <= 'm < 'n.
   (bits('n), int('m), int('o)) -> bits('m - 'o + 1)
@@ -321,6 +322,7 @@ val update_subrange_bits = pure {
   interpreter: "update_subrange",
   lem: "update_subrange_vec_dec",
   coq: "update_subrange_vec_dec",
+  lean: "Sail.BitVec.update_subrange",
   _: "vector_update_subrange"
 } : forall 'n 'm 'o, 0 <= 'o <= 'm < 'n. (bits('n), int('m), int('o), bits('m - ('o - 1))) -> bits('n)
 $else
