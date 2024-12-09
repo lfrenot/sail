@@ -18,8 +18,13 @@ def truncateLSB {w: Nat} (x: BitVec w) (w': Nat) : BitVec w' :=
 def extractLsb {w: Nat} (x: BitVec w) (hi lo: Nat) : BitVec (hi - lo + 1) :=
   x.extractLsb hi lo
 
+def update_subrange' {w: Nat} (x: BitVec w) (start len: Nat) (y: BitVec len) : BitVec w :=
+  let mask := ~~~(((BitVec.allOnes len).zeroExtend w) <<< start)
+  let y' := mask ||| ((y.zeroExtend w) <<< start)
+  x &&& y'
+
 def update_subrange {w: Nat} (x: BitVec w) (hi lo: Nat) (y: BitVec (hi - lo + 1)) : BitVec w :=
-  sorry
+  update_subrange' x lo _ y
 
 end BitVec
 end Sail
