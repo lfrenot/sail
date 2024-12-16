@@ -109,7 +109,9 @@ let rec doc_typ (Typ_aux (t, _) as typ) =
   | Typ_id (Id_aux (Id "bool", _)) -> string "Bool"
   | Typ_id (Id_aux (Id "bit", _)) -> parens (string "BitVec 1")
   | Typ_id (Id_aux (Id "nat", _)) -> string "Nat"
-  | Typ_app (Id_aux (Id "bitvector", _), [A_aux (A_nexp m, _)]) -> string "BitVec " ^^ doc_nexp m
+  | Typ_app (Id_aux (Id "bitvector", _), [A_aux (A_nexp m, _)]) | Typ_app (Id_aux (Id "bits", _), [A_aux (A_nexp m, _)])
+    ->
+      string "BitVec " ^^ doc_nexp m
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) -> string "Int"
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) doc_typ ts)
   | Typ_id (Id_aux (Id id, _)) -> string id
@@ -281,6 +283,10 @@ let doc_typdef (TD_aux (td, tannot) as full_typdef) =
       let rectyp = doc_typ_quant tq in
       (* TODO don't ignore type quantifiers *)
       nest 2 (flow (break 1) [string "structure"; string id; string "where"] ^^ hardline ^^ enums_doc)
+  | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_typ t, _)) ->
+      nest 2 (flow (break 1) [string "def"; string id; coloneq; doc_typ t])
+  | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_nexp ne, _)) ->
+      nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
 let doc_def (DEF_aux (aux, def_annot) as def) =
