@@ -9,12 +9,34 @@ open Rewriter
 open PPrint
 open Pretty_print_common
 
-let implicit_parens x = enclose (string "{") (string "}") x
+type context = {
+  kid_id_renames : id option KBindings.t; (* tyvar -> argument renames *)
+  kid_id_renames_rev : kid Bindings.t; (* reverse of kid_id_renames *)
+}
 
+let empty_context = { kid_id_renames = KBindings.empty; kid_id_renames_rev = Bindings.empty }
+
+let add_single_kid_id_rename ctxt id kid =
+  let kir =
+    match Bindings.find_opt id ctxt.kid_id_renames_rev with
+    | Some kid -> KBindings.add kid None ctxt.kid_id_renames
+    | None -> ctxt.kid_id_renames
+  in
+  {
+    (* ctxt with *)
+    kid_id_renames = KBindings.add kid (Some id) kir;
+    kid_id_renames_rev = Bindings.add id kid ctxt.kid_id_renames_rev;
+  }
+
+let implicit_parens x = enclose (string "{") (string "}") x
 let doc_id_ctor (Id_aux (i, _)) =
   match i with Id i -> string i | Operator x -> string (Util.zencode_string ("op " ^ x))
 
-let doc_kid (Kid_aux (Var x, _)) = string ("k_" ^ String.sub x 1 (String.length x - 1))
+  let doc_kid ctxt (Kid_aux (Var x, _) as ki) =
+  match KBindings.find_opt ki ctxt.kid_id_renames with
+  | Some (Some i) -> string (string_of_id i)
+  | _ -> string ("k_" ^ String.sub x 1 (String.length x - 1))
+  
 (* TODO do a proper renaming and keep track of it *)
 
 let is_enum env id = match Env.lookup_id id env with Enum _ -> true | _ -> false
@@ -85,10 +107,10 @@ let string_of_nexp_con (Nexp_aux (n, l)) =
   | Nexp_neg _ -> "Nexp_neg"
   | Nexp_exp _ -> "Nexp_exp"
 
-let doc_nexp (Nexp_aux (n, l) as nexp) =
+let doc_nexp ctxt (Nexp_aux (n, l) as nexp) =
   match n with
   | Nexp_constant i -> string (Big_int.to_string i)
-  | Nexp_var ki -> doc_kid ki
+  | Nexp_var ki -> doc_kid ctxt ki
   | _ -> failwith ("NExp " ^ string_of_nexp_con nexp ^ " " ^ string_of_nexp nexp ^ " not translatable yet.")
 
 let string_of_typ_con (Typ_aux (t, _)) =
@@ -102,7 +124,7 @@ let string_of_typ_con (Typ_aux (t, _)) =
   | Typ_internal_unknown -> "Typ_internal_unknown"
   | Typ_id _ -> "Typ_id"
 
-let rec doc_typ (Typ_aux (t, _) as typ) =
+let rec doc_typ ctxt (Typ_aux (t, _) as typ) =
   match t with
   | Typ_id (Id_aux (Id "unit", _)) -> string "Unit"
   | Typ_id (Id_aux (Id "int", _)) -> string "Int"
@@ -111,13 +133,23 @@ let rec doc_typ (Typ_aux (t, _) as typ) =
   | Typ_id (Id_aux (Id "nat", _)) -> string "Nat"
   | Typ_app (Id_aux (Id "bitvector", _), [A_aux (A_nexp m, _)]) | Typ_app (Id_aux (Id "bits", _), [A_aux (A_nexp m, _)])
     ->
-      string "BitVec " ^^ doc_nexp m
-  | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) -> string "Int"
-  | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) doc_typ ts)
+      string "BitVec " ^^ doc_nexp ctxt m
+  | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
+      string "Int" (* TODO This probably has to be generalized *)
+  | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
+      underscore (* TODO check if the type of implicit arguments can really be always inferred *)
+  | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctxt) ts)
   | Typ_id (Id_aux (Id id, _)) -> string id
   | _ -> failwith ("Type " ^ string_of_typ_con typ ^ " " ^ string_of_typ typ ^ " not translatable yet.")
 
-let doc_typ_id (typ, fid) = concat [doc_id_ctor fid; space; colon; space; doc_typ typ; hardline]
+let rec captured_typ_var ((i, Typ_aux (t, _)) as typ) =
+  match t with
+  | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)])
+  | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
+      Some (i, ki)
+  | _ -> None
+
+let doc_typ_id ctxt (typ, fid) = concat [doc_id_ctor fid; space; colon; space; doc_typ ctxt typ; hardline]
 
 let doc_kind (K_aux (k, _)) =
   match k with
@@ -125,12 +157,12 @@ let doc_kind (K_aux (k, _)) =
   | K_bool -> string "Bool"
   | _ -> failwith ("Kind " ^ string_of_kind_aux k ^ " not translatable yet.")
 
-let doc_quant_item (QI_aux (qi, _)) =
+let doc_quant_item ctxt (QI_aux (qi, _)) =
   match qi with
-  | QI_id (KOpt_aux (KOpt_kind (k, ki), _)) -> implicit_parens (flow (break 1) [doc_kid ki; colon; doc_kind k])
+  | QI_id (KOpt_aux (KOpt_kind (k, ki), _)) -> implicit_parens (flow (break 1) [doc_kid ctxt ki; colon; doc_kind k])
   | QI_constraint _ -> failwith "Constraints not supported yet."
 
-let doc_typ_quant tq = match tq with TypQ_tq qs -> List.map doc_quant_item qs | TypQ_no_forall -> []
+let doc_typ_quant ctxt tq = match tq with TypQ_tq qs -> List.map (doc_quant_item ctxt) qs | TypQ_no_forall -> []
 
 let lean_escape_string s = Str.global_replace (Str.regexp "\"") "\"\"" s
 
@@ -190,7 +222,7 @@ let string_of_exp_con (E_aux (e, _)) =
   | E_vector _ -> "E_vector"
   | E_let _ -> "E_let"
 
-let rec doc_exp (E_aux (e, (l, annot)) as full_exp) =
+let rec doc_exp ctxt (E_aux (e, (l, annot)) as full_exp) =
   let env = env_of_tannot annot in
   match e with
   | E_id id -> string (string_of_id id) (* TODO replace by a translating via a binding map *)
@@ -200,13 +232,13 @@ let rec doc_exp (E_aux (e, (l, annot)) as full_exp) =
   | E_internal_plet _ -> string "sorry" (* TODO replace by actual implementation of internal_plet *)
   | E_app (f, args) ->
       let d_id =
-        if Env.is_extern f env "lean" then string (Env.get_extern f env "lean") else doc_exp (E_aux (E_id f, (l, annot)))
+        if Env.is_extern f env "lean" then string (Env.get_extern f env "lean") else doc_exp ctxt (E_aux (E_id f, (l, annot)))
       in
-      let d_args = List.map doc_exp args in
+      let d_args = List.map (doc_exp ctxt) args in
       nest 2 (parens (flow (break 1) (d_id :: d_args)))
   | E_vector vals -> failwith "vector found"
-  | E_typ (typ, e) -> parens (separate space [doc_exp e; colon; doc_typ typ])
-  | E_tuple es -> parens (separate_map (comma ^^ space) doc_exp es)
+  | E_typ (typ, e) -> parens (separate space [doc_exp ctxt e; colon; doc_typ ctxt typ])
+  | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctxt) es)
   | E_let (LB_aux (LB_val (lpat, lexp), _), e) ->
       let id =
         match pat_is_plain_binder env lpat with
@@ -214,8 +246,19 @@ let rec doc_exp (E_aux (e, (l, annot)) as full_exp) =
         | Some None -> "x" (* TODO fresh name or wildcard instead of x *)
         | _ -> failwith "Let pattern not translatable yet."
       in
-      nest 2 (flow (break 1) [string "let"; string id; coloneq; doc_exp lexp]) ^^ hardline ^^ doc_exp e
+      nest 2 (flow (break 1) [string "let"; string id; coloneq; doc_exp ctxt lexp]) ^^ hardline ^^ doc_exp ctxt e
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
+
+let doc_binder ctxt i t =
+  let paranthesizer =
+    match t with
+    | Typ_aux (Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]), _) ->
+        implicit_parens
+    | _ -> parens
+  in
+  (* Overwrite the id if foo *)
+  let ctxt = match captured_typ_var (i, t) with Some (i, ki) -> add_single_kid_id_rename ctxt i ki | _ -> ctxt in
+  (ctxt, separate space [string (string_of_id i); colon; doc_typ ctxt t] |> paranthesizer)
 
 let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let env = env_of_tannot (snd annot) in
@@ -236,17 +279,23 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
            | _ -> failwith "Argument pattern not translatable yet."
        )
   in
-  let binders : document list =
-    binders |> List.map (fun (i, t) -> separate space [string (string_of_id i); colon; doc_typ t] |> parens)
+  let ctxt = empty_context in
+  let ctxt, binders =
+    List.fold_left
+      (fun (ctxt, bs) (i, t) ->
+        let ctxt, d = doc_binder ctxt i t in
+        (ctxt, bs @ [d])
+      )
+      (ctxt, []) binders
   in
   (* let binders = doc_typ_quant tq @ binders in *)
   (* Use auto-implicits for type quanitifiers for now and see if this works *)
-  let doc_ret_typ = doc_typ ret_typ in
+  let doc_ret_typ = doc_typ ctxt ret_typ in
   separate space ([string "def"; string (string_of_id id)] @ binders @ [colon; doc_ret_typ; coloneq])
 
 let doc_funcl_body (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let _, _, exp, _ = destruct_pexp pexp in
-  doc_exp exp
+  doc_exp empty_context exp
 
 let doc_funcl funcl = nest 2 (doc_funcl_init funcl ^^ hardline ^^ doc_funcl_body funcl)
 
@@ -265,7 +314,7 @@ let string_of_type_def_con (TD_aux (td, _)) =
   | TD_bitfield _ -> "TD_bitfield"
   | TD_enum _ -> "TD_enum"
 
-let doc_typdef (TD_aux (td, tannot) as full_typdef) =
+let doc_typdef ctxt (TD_aux (td, tannot) as full_typdef) =
   match td with
   | TD_enum (Id_aux (Id id, _), fields, _) ->
       let derivers = if List.length fields > 0 then [string "Inhabited"] else [] in
@@ -278,21 +327,21 @@ let doc_typdef (TD_aux (td, tannot) as full_typdef) =
         ^^ separate (comma ^^ space) derivers
         )
   | TD_record (Id_aux (Id id, _), TypQ_aux (tq, _), fields, _) ->
-      let fields = List.map doc_typ_id fields in
+      let fields = List.map (doc_typ_id ctxt) fields in
       let enums_doc = concat fields in
-      let rectyp = doc_typ_quant tq in
+      let rectyp = doc_typ_quant ctxt tq in
       (* TODO don't ignore type quantifiers *)
       nest 2 (flow (break 1) [string "structure"; string id; string "where"] ^^ hardline ^^ enums_doc)
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_typ t, _)) ->
-      nest 2 (flow (break 1) [string "def"; string id; coloneq; doc_typ t])
+      nest 2 (flow (break 1) [string "def"; string id; coloneq; doc_typ ctxt t])
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_nexp ne, _)) ->
-      nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ne])
+      nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ctxt ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
-let doc_def (DEF_aux (aux, def_annot) as def) =
+let doc_def ctxt (DEF_aux (aux, def_annot) as def) =
   match aux with
   | DEF_fundef fdef -> group (doc_fundef fdef) ^/^ hardline
-  | DEF_type tdef -> group (doc_typdef tdef) ^/^ hardline
+  | DEF_type tdef -> group (doc_typdef ctxt tdef) ^/^ hardline
   | _ -> empty
 
 (* Remove all imports for now, they will be printed in other files. Probably just for testing. *)
@@ -305,6 +354,6 @@ let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.en
 
 let pp_ast_lean ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
-  let output : document = separate_map empty doc_def defs in
+  let output : document = separate_map empty (doc_def empty_context) defs in
   print o output;
   ()
