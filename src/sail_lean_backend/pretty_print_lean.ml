@@ -32,11 +32,11 @@ let implicit_parens x = enclose (string "{") (string "}") x
 let doc_id_ctor (Id_aux (i, _)) =
   match i with Id i -> string i | Operator x -> string (Util.zencode_string ("op " ^ x))
 
-  let doc_kid ctxt (Kid_aux (Var x, _) as ki) =
+let doc_kid ctxt (Kid_aux (Var x, _) as ki) =
   match KBindings.find_opt ki ctxt.kid_id_renames with
   | Some (Some i) -> string (string_of_id i)
   | _ -> string ("k_" ^ String.sub x 1 (String.length x - 1))
-  
+
 (* TODO do a proper renaming and keep track of it *)
 
 let is_enum env id = match Env.lookup_id id env with Enum _ -> true | _ -> false
@@ -157,10 +157,35 @@ let doc_kind (K_aux (k, _)) =
   | K_bool -> string "Bool"
   | _ -> failwith ("Kind " ^ string_of_kind_aux k ^ " not translatable yet.")
 
+let doc_typ_arg ctxt ta = string "foo"
+
+let rec doc_nconstraint ctxt (NC_aux (nc, _)) =
+  match nc with
+  | NC_and (n1, n2) -> flow (break 1) [doc_nconstraint ctxt n1; string "∧"; doc_nconstraint ctxt n2]
+  | NC_or (n1, n2) -> flow (break 1) [doc_nconstraint ctxt n1; string "∨"; doc_nconstraint ctxt n2]
+  | NC_equal (a1, a2) -> flow (break 1) [doc_typ_arg ctxt a1; string "="; doc_typ_arg ctxt a2]
+  | NC_not_equal (a1, a2) -> flow (break 1) [doc_typ_arg ctxt a1; string "≠"; doc_typ_arg ctxt a2]
+  | NC_app (f, args) -> string (string_of_id f) ^^ parens (separate_map comma_sp (doc_typ_arg ctxt) args)
+  | NC_false -> string "false"
+  | NC_true -> string "true"
+  | NC_ge (n1, n2) -> flow (break 1) [doc_nexp ctxt n1; string "≥"; doc_nexp ctxt n2]
+  | NC_le (n1, n2) -> flow (break 1) [doc_nexp ctxt n1; string "≤"; doc_nexp ctxt n2]
+  | NC_gt (n1, n2) -> flow (break 1) [doc_nexp ctxt n1; string ">"; doc_nexp ctxt n2]
+  | NC_lt (n1, n2) -> flow (break 1) [doc_nexp ctxt n1; string "<"; doc_nexp ctxt n2]
+  | NC_id i -> string (string_of_id i)
+  | NC_set (n, vs) ->
+      flow (break 1)
+        [
+          doc_nexp ctxt n;
+          string "∈";
+          implicit_parens (separate_map comma_sp (fun x -> string (Nat_big_num.to_string x)) vs);
+        ]
+  | NC_var ki -> doc_kid ctxt ki
+
 let doc_quant_item ctxt (QI_aux (qi, _)) =
   match qi with
-  | QI_id (KOpt_aux (KOpt_kind (k, ki), _)) -> implicit_parens (flow (break 1) [doc_kid ctxt ki; colon; doc_kind k])
-  | QI_constraint _ -> failwith "Constraints not supported yet."
+  | QI_id (KOpt_aux (KOpt_kind (k, ki), _)) -> flow (break 1) [doc_kid ctxt ki; colon; doc_kind k]
+  | QI_constraint c -> doc_nconstraint ctxt c
 
 let doc_typ_quant ctxt tq = match tq with TypQ_tq qs -> List.map (doc_quant_item ctxt) qs | TypQ_no_forall -> []
 
@@ -232,7 +257,8 @@ let rec doc_exp ctxt (E_aux (e, (l, annot)) as full_exp) =
   | E_internal_plet _ -> string "sorry" (* TODO replace by actual implementation of internal_plet *)
   | E_app (f, args) ->
       let d_id =
-        if Env.is_extern f env "lean" then string (Env.get_extern f env "lean") else doc_exp ctxt (E_aux (E_id f, (l, annot)))
+        if Env.is_extern f env "lean" then string (Env.get_extern f env "lean")
+        else doc_exp ctxt (E_aux (E_id f, (l, annot)))
       in
       let d_args = List.map (doc_exp ctxt) args in
       nest 2 (parens (flow (break 1) (d_id :: d_args)))
@@ -256,7 +282,7 @@ let doc_binder ctxt i t =
         implicit_parens
     | _ -> parens
   in
-  (* Overwrite the id if foo *)
+  (* Overwrite the id if it's captured *)
   let ctxt = match captured_typ_var (i, t) with Some (i, ki) -> add_single_kid_id_rename ctxt i ki | _ -> ctxt in
   (ctxt, separate space [string (string_of_id i); colon; doc_typ ctxt t] |> paranthesizer)
 
@@ -288,16 +314,25 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
       )
       (ctxt, []) binders
   in
-  (* let binders = doc_typ_quant tq @ binders in *)
+  let typ_quants = doc_typ_quant ctxt tq in
+  let typ_quant_comment =
+    if List.length typ_quants > 0 then
+      string "/-- Type quantifiers: " ^^ nest 2 (flow comma_sp typ_quants) ^^ string " -/" ^^ hardline
+    else empty
+  in
   (* Use auto-implicits for type quanitifiers for now and see if this works *)
   let doc_ret_typ = doc_typ ctxt ret_typ in
-  separate space ([string "def"; string (string_of_id id)] @ binders @ [colon; doc_ret_typ; coloneq])
+  ( typ_quant_comment,
+    separate space ([string "def"; string (string_of_id id)] @ binders @ [colon; doc_ret_typ; coloneq])
+  )
 
 let doc_funcl_body (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let _, _, exp, _ = destruct_pexp pexp in
   doc_exp empty_context exp
 
-let doc_funcl funcl = nest 2 (doc_funcl_init funcl ^^ hardline ^^ doc_funcl_body funcl)
+let doc_funcl funcl =
+  let comment, signature = doc_funcl_init funcl in
+  comment ^^ nest 2 (signature ^^ hardline ^^ doc_funcl_body funcl)
 
 let doc_fundef (FD_aux (FD_function (r, typa, fcls), fannot)) =
   match fcls with
