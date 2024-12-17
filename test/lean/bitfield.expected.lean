@@ -1,4 +1,4 @@
-import Sail.sail
+import Sail.Sail
 
 structure cr_type  where
   bits : BitVec 8
