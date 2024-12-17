@@ -1,4 +1,3 @@
-
 inductive register where
   | Register : String → /- name -/
                Nat → /- length -/
