@@ -66,6 +66,18 @@ function float_decompose(op) = {
   }
 }
 
+val      float_has_max_exp : forall 'n, 'n in { 16, 32, 64, 128 }. bits('n) -> bool
+function float_has_max_exp (op) = {
+  let fp = float_decompose (op);
+  let bitsize = length (op);
+  let one = sail_zero_extend ([bitone], bitsize);
+  let two = sail_shiftleft (one, 1);
+  let max_exp = sub_bits (sail_shiftleft (one, length (fp.exp)), two);
+  let has_max = max_exp == sail_zero_extend (fp.exp, bitsize);
+
+  has_max;
+}
+
 val      not : forall ('p : Bool). bool('p) -> bool(not('p))
 function not(b) = not_bool(b)
 

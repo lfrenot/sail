@@ -72,6 +72,34 @@ function float_propagate_nan (op_0, op_1) = {
   ((op | mask), flags)
 }
 
+val      float_add_same_exp_internal : forall 'n, 'n in {16, 32, 64, 128}.
+  (bits('n), bits('n)) -> (bits('n), fp_exception_flags)
+function float_add_same_exp_internal (op_0, op_1) = {
+  let fp_0 = float_decompose (op_0);
+  let fp_1 = float_decompose (op_1);
+
+  let bitsize = length (op_0);
+  let mantissa_0 = sail_zero_extend (fp_0.mantissa, bitsize);
+  let mantissa_1 = sail_zero_extend (fp_1.mantissa, bitsize);
+  let mantissa_sum = mantissa_0 + mantissa_1;
+
+  let no_round = is_lowest_zero (mantissa_sum) & not (float_has_max_exp (op_0));
+
+  if no_round then {
+    let mantissa_shift = sail_shiftright (mantissa_sum, 1);
+    let mantissa_bitsize = length (fp_0.mantissa);
+
+    let sign = fp_0.sign;
+    let exp = fp_0.exp + sail_zero_extend ([bitone], length (fp_0.exp));
+    let mantissa = truncate (mantissa_shift, mantissa_bitsize);
+
+    (sign @ exp @ mantissa, fp_eflag_none);
+  } else {
+    assert (false, "Not implemented yet.");
+    (sail_zeros ('n), fp_eflag_none);
+  }
+}
+
 val      float_add_same_exp: forall 'n, 'n in {16, 32, 64, 128}.
   (bits('n), bits('n)) -> (bits('n), fp_exception_flags)
 function float_add_same_exp (op_0, op_1) = {
@@ -90,10 +118,8 @@ function float_add_same_exp (op_0, op_1) = {
     (op_0, fp_eflag_none)
   else if is_exp_0_all_ones & not (is_mantissa_all_zeros) then
     float_propagate_nan (op_0, op_1)
-  else {
-    assert (false, "Not implemented yet.");
-    (sail_zeros ('n), fp_eflag_none);
-  };
+  else
+    float_add_same_exp_internal (op_0, op_1);
 }
 
 val      float_add_internal : forall 'n, 'n in {16, 32, 64, 128}.
