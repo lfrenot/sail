@@ -248,10 +248,4 @@
    src/gen_lib/sail2_values.lem)
   (%{workspace_root}/src/sail_lean_backend/Sail/Sail.lean
    as
-   src/sail_lean_backend/Sail/Sail.lean)
-  (%{workspace_root}/src/sail_lean_backend/Sail/Bitvec.lean
-   as
-   src/sail_lean_backend/Sail/Bitvec.lean)
-  (%{workspace_root}/src/sail_lean_backend/Sail/Registers.lean
-   as
-   src/sail_lean_backend/Sail/Registers.lean)))
+   src/sail_lean_backend/Sail/Sail.lean)))
