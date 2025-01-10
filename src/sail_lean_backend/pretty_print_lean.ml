@@ -12,9 +12,14 @@ open Pretty_print_common
 type context = {
   kid_id_renames : id option KBindings.t; (* tyvar -> argument renames *)
   kid_id_renames_rev : kid Bindings.t; (* reverse of kid_id_renames *)
+  is_monadic : bool;
 }
 
-let empty_context = { kid_id_renames = KBindings.empty; kid_id_renames_rev = Bindings.empty }
+let empty_context = {
+  kid_id_renames = KBindings.empty;
+  kid_id_renames_rev = Bindings.empty;
+  is_monadic = false;
+  }
 
 let add_single_kid_id_rename ctxt id kid =
   let kir =
@@ -26,6 +31,7 @@ let add_single_kid_id_rename ctxt id kid =
     (* ctxt with *)
     kid_id_renames = KBindings.add kid (Some id) kir;
     kid_id_renames_rev = Bindings.add id kid ctxt.kid_id_renames_rev;
+    is_monadic = ctxt.is_monadic
   }
 
 let implicit_parens x = enclose (string "{") (string "}") x
