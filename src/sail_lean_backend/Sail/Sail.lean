@@ -32,3 +32,6 @@ def update_subrange {w: Nat} (x: BitVec w) (hi lo: Nat) (y: BitVec (hi - lo + 1)
 
 end BitVec
 end Sail
+
+def undefined_bitvector (n: Nat) : BitVec n :=
+  0#n
