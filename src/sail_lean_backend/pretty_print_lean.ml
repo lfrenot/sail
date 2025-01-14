@@ -556,7 +556,9 @@ let pp_ast_lean ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o effect_inf
   let global = { effect_info } in
   let ctxt = { empty_context with global } in
   let regs = State.find_registers defs in
-  let register_refs = match regs with [] -> empty | _ -> State.register_refs_lean (doc_id ctxt) (doc_typ ctxt) regs in
+  let register_refs =
+    match regs with [] -> empty | _ -> State.register_refs_lean (doc_id ctxt) (doc_typ ctxt) regs ^^ hardline
+  in
   let output : document = separate_map empty (doc_def ctxt) defs in
-  print o (register_refs ^^ hardline ^^ output);
+  print o (register_refs ^^ output);
   ()
