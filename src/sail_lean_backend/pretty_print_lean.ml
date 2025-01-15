@@ -405,6 +405,8 @@ let rec doc_exp (ctxt : context) (E_aux (e, (l, annot)) as full_exp) =
   | E_typ (typ, e) -> begin
       match e with
       | E_aux (E_assign _, _) -> doc_exp ctxt e
+      | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
+          string "return " ^^ parens (separate space [doc_exp ctxt e; colon; doc_typ ctxt typ])
       | _ -> parens (separate space [doc_exp ctxt e; colon; doc_typ ctxt typ])
     end
   | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctxt) es)
