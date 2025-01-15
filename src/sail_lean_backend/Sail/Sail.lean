@@ -32,3 +32,10 @@ def update_subrange {w: Nat} (x: BitVec w) (hi lo: Nat) (y: BitVec (hi - lo + 1)
 
 end BitVec
 end Sail
+
+structure registerRef (regstate regval a: Type) where
+  name: String
+  read_from: regstate -> a
+  write_to: a -> regstate -> regstate
+  of_regval: regval -> Option a
+  regval_of: a -> regval

@@ -138,7 +138,7 @@ let rec doc_typ ctxt (Typ_aux (t, _) as typ) =
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       string "Int" (* TODO This probably has to be generalized *)
   | Typ_app (Id_aux (Id "register", _), t_app) ->
-      string "register_ref Unit Unit " (* TODO: Replace units with real types. *)
+      string "registerRef Unit Unit " (* TODO: Replace units with real types. *)
       ^^ separate_map comma (doc_typ_app ctxt) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
