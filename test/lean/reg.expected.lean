@@ -1,4 +1,4 @@
-import Reg.Sail.Sail
+import Out.Sail.Sail
 
 open Sail
 
