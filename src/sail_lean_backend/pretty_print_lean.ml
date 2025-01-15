@@ -493,7 +493,7 @@ let doc_funcl_init ctxt (FCL_aux (FCL_funcl (id, pexp), annot)) =
 let doc_funcl_body ctxt (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let _, _, exp, _ = destruct_pexp pexp in
   (* let is_monadic = effectful (effect_of exp) in
-  if is_monadic then nest 2 (flow (break 1) [string "return"; doc_exp ctxt exp]) else doc_exp ctxt exp *)
+     if is_monadic then nest 2 (flow (break 1) [string "return"; doc_exp ctxt exp]) else doc_exp ctxt exp *)
   doc_exp ctxt exp
 
 let doc_funcl ctxt funcl =
