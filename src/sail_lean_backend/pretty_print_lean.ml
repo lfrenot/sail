@@ -424,6 +424,7 @@ let rec doc_exp (ctxt : context) (E_aux (e, (l, annot)) as full_exp) =
       let args = List.map (doc_fexp ctxt) fexps in
       braces (doc_exp ctxt exp ^^ string " with " ^^ separate comma args)
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> string "set_" ^^ doc_lexp_deref ctxt le ^^ space ^^ doc_exp ctxt e
+  | E_internal_return e -> nest 2 (flow (break 1) [string "return"; doc_exp ctxt e])
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp ctxt (FE_aux (FE_fexp (field, exp), _)) = doc_id_ctor ctxt field ^^ string " := " ^^ doc_exp ctxt exp
@@ -491,12 +492,13 @@ let doc_funcl_init ctxt (FCL_aux (FCL_funcl (id, pexp), annot)) =
 
 let doc_funcl_body ctxt (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let _, _, exp, _ = destruct_pexp pexp in
-  let is_monadic = effectful (effect_of exp) in
-  if is_monadic then nest 2 (flow (break 1) [string "return"; doc_exp ctxt exp]) else doc_exp ctxt exp
+  (* let is_monadic = effectful (effect_of exp) in
+  if is_monadic then nest 2 (flow (break 1) [string "return"; doc_exp ctxt exp]) else doc_exp ctxt exp *)
+  doc_exp ctxt exp
 
 let doc_funcl ctxt funcl =
-  let signature = doc_funcl_init ctxt funcl in
-  nest 2 (signature ^^ hardline ^^ doc_funcl_body ctxt funcl)
+  let comment, signature = doc_funcl_init ctxt funcl in
+  comment ^^ nest 2 (signature ^^ hardline ^^ doc_funcl_body ctxt funcl)
 
 let doc_fundef ctxt (FD_aux (FD_function (r, typa, fcls), fannot)) =
   match fcls with

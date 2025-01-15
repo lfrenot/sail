@@ -35,3 +35,9 @@ end Sail
 
 def undefined_bitvector (n: Nat) : BitVec n :=
   0#n
+
+def undefined_int (lit: Unit) : Int :=
+  0
+
+def undefined_bit (lit: Unit) : BitVec 1 :=
+  undefined_bitvector 1
