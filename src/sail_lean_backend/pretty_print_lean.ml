@@ -285,11 +285,11 @@ let rec doc_exp ctxt (E_aux (e, (l, annot)) as full_exp) =
       nest 2 (flow (break 1) [string "let"; string id; coloneq; doc_exp ctxt lexp]) ^^ hardline ^^ doc_exp ctxt e
   | E_struct fexps ->
       let args = List.map (doc_fexp ctxt) fexps in
-      braces (separate (comma ^^ space) args)
+      braces (space ^^ nest 2 (separate hardline args) ^^ space)
   | E_field (exp, id) -> doc_exp ctxt exp ^^ dot ^^ doc_id_ctor id
   | E_struct_update (exp, fexps) ->
       let args = List.map (doc_fexp ctxt) fexps in
-      braces (doc_exp ctxt exp ^^ string " with " ^^ separate comma args)
+      braces (space ^^ doc_exp ctxt exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp ctxt (FE_aux (FE_fexp (field, exp), _)) = doc_id_ctor field ^^ string " := " ^^ doc_exp ctxt exp
