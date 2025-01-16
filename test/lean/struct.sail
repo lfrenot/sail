@@ -16,3 +16,11 @@ val struct_update_field2 : (My_struct, bit) -> My_struct
 function struct_update_field2(s, b) = {
   { s with field2 = b }
 }
+
+val mk_struct : (int, bit) -> My_struct
+function mk_struct(i, b) = {
+  struct { 
+    field1 = i,
+    field2 = b
+  }
+}

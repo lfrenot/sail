@@ -15,6 +15,10 @@ def struct_field2 (s : My_struct) : (BitVec 1) :=
 def struct_update_field2 (s : My_struct) (b : (BitVec 1)) : My_struct :=
   {s with field2 := b}
 
+/-- Type quantifiers: i : Int -/
+def mk_struct (i : Int) (b : (BitVec 1)) : My_struct :=
+  {field1 := i, field2 := b}
+
 def initialize_registers : Unit :=
   ()
 
