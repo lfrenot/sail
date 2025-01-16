@@ -187,6 +187,7 @@ let create_lake_project (out_name : string) default_sail_dir =
   in
   let project_main = open_out (Filename.concat project_dir (out_name_camel ^ ".lean")) in
   output_string project_main ("import " ^ out_name_camel ^ ".Sail.Sail\n\n");
+  output_string project_main "open Sail\n\n";
   project_main
 
 let output (out_name : string) ast default_sail_dir =

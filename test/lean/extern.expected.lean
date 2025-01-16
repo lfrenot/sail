@@ -1,5 +1,7 @@
 import Out.Sail.Sail
 
+open Sail
+
 def extern_add : Int :=
   (Int.add 5 4)
 

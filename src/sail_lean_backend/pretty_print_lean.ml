@@ -29,6 +29,7 @@ let add_single_kid_id_rename ctxt id kid =
   }
 
 let implicit_parens x = enclose (string "{") (string "}") x
+
 let doc_id_ctor (Id_aux (i, _)) =
   match i with Id i -> string i | Operator x -> string (Util.zencode_string ("op " ^ x))
 
@@ -133,7 +134,7 @@ let rec doc_typ ctxt (Typ_aux (t, _) as typ) =
   | Typ_id (Id_aux (Id "nat", _)) -> string "Nat"
   | Typ_app (Id_aux (Id "bitvector", _), [A_aux (A_nexp m, _)]) | Typ_app (Id_aux (Id "bits", _), [A_aux (A_nexp m, _)])
     ->
-      string "BitVec " ^^ doc_nexp ctxt m
+      parens (string "BitVec " ^^ doc_nexp ctxt m)
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       string "Int" (* TODO This probably has to be generalized *)
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
@@ -149,7 +150,7 @@ let rec captured_typ_var ((i, Typ_aux (t, _)) as typ) =
       Some (i, ki)
   | _ -> None
 
-let doc_typ_id ctxt (typ, fid) = concat [doc_id_ctor fid; space; colon; space; doc_typ ctxt typ; hardline]
+let doc_typ_id ctxt (typ, fid) = flow (break 1) [doc_id_ctor fid; colon; doc_typ ctxt typ]
 
 let doc_kind (K_aux (k, _)) =
   match k with
@@ -157,7 +158,7 @@ let doc_kind (K_aux (k, _)) =
   | K_bool -> string "Bool"
   | _ -> failwith ("Kind " ^ string_of_kind_aux k ^ " not translatable yet.")
 
-let doc_typ_arg ctxt ta = string "foo"
+let doc_typ_arg ctxt ta = string "foo" (* TODO implement *)
 
 let rec doc_nconstraint ctxt (NC_aux (nc, _)) =
   match nc with
@@ -294,7 +295,7 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
     | Typ_aux (Typ_fn (arg_typs, ret_typ), _) -> (arg_typs, ret_typ, no_effect)
     | _ -> failwith ("Function " ^ string_of_id id ^ " does not have function type")
   in
-  let pat, _, _, _ = destruct_pexp pexp in
+  let pat, _, exp, _ = destruct_pexp pexp in
   let pats, _ = untuple_args_pat arg_typs pat in
   let binders : (id * typ) list =
     pats
@@ -322,13 +323,20 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
   in
   (* Use auto-implicits for type quanitifiers for now and see if this works *)
   let doc_ret_typ = doc_typ ctxt ret_typ in
+  let is_monadic = effectful (effect_of exp) in
+  (* Add monad for stateful functions *)
+  let doc_ret_typ = if is_monadic then string "SailM " ^^ doc_ret_typ else doc_ret_typ in
+  let decl_val = [doc_ret_typ; coloneq] in
+  (* Add do block for stateful functions *)
+  let decl_val = if is_monadic then decl_val @ [string "do"] else decl_val in
   ( typ_quant_comment,
     separate space ([string "def"; string (string_of_id id)] @ binders @ [colon; doc_ret_typ; coloneq])
   )
 
 let doc_funcl_body (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let _, _, exp, _ = destruct_pexp pexp in
-  doc_exp empty_context exp
+  let is_monadic = effectful (effect_of exp) in
+  if is_monadic then nest 2 (flow (break 1) [string "return"; doc_exp empty_context exp]) else doc_exp empty_context exp
 
 let doc_funcl funcl =
   let comment, signature = doc_funcl_init funcl in
@@ -363,7 +371,7 @@ let doc_typdef ctxt (TD_aux (td, tannot) as full_typdef) =
         )
   | TD_record (Id_aux (Id id, _), TypQ_aux (tq, _), fields, _) ->
       let fields = List.map (doc_typ_id ctxt) fields in
-      let enums_doc = concat fields in
+      let enums_doc = separate hardline fields in
       let rectyp = doc_typ_quant ctxt tq in
       (* TODO don't ignore type quantifiers *)
       nest 2 (flow (break 1) [string "structure"; string id; string "where"] ^^ hardline ^^ enums_doc)
