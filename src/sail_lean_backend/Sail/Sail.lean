@@ -39,3 +39,6 @@ structure RegisterRef (regstate regval a : Type) where
   write_to : a -> regstate -> regstate
   of_regval : regval -> Option a
   regval_of : a -> regval
+
+def undefined_bitvector (w : Nat) : BitVec w :=
+  0
