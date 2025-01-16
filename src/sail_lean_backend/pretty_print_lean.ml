@@ -138,7 +138,8 @@ let rec doc_typ ctxt (Typ_aux (t, _) as typ) =
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       string "Int" (* TODO This probably has to be generalized *)
   | Typ_app (Id_aux (Id "register", _), t_app) ->
-      string "registerRef Unit Unit " (* TODO: Replace units with real types. *) ^^ separate_map comma (doc_typ_app ctxt) t_app
+      string "RegisterRef Unit Unit "
+      (* TODO: Replace units with real types. *) ^^ separate_map comma (doc_typ_app ctxt) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctxt) ts)

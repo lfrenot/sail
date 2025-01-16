@@ -33,7 +33,7 @@ def updateSubrange {w : Nat} (x : BitVec w) (hi lo : Nat) (y : BitVec (hi - lo +
 end BitVec
 end Sail
 
-structure registerRef (regstate regval a : Type) where
+structure RegisterRef (regstate regval a : Type) where
   name : String
   read_from : regstate -> a
   write_to : a -> regstate -> regstate
