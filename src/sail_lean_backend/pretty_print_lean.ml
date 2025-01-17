@@ -156,8 +156,8 @@ let rec doc_typ ctxt (Typ_aux (t, _) as typ) =
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       string "Int" (* TODO This probably has to be generalized *)
   | Typ_app (Id_aux (Id "register", _), t_app) ->
-      string "register_ref Unit Unit " (* TODO: Replace units with real types. *)
-      ^^ separate_map comma (doc_typ_app ctxt) t_app
+      string "RegisterRef Unit Unit "
+      (* TODO: Replace units with real types. *) ^^ separate_map comma (doc_typ_app ctxt) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctxt) ts)
@@ -420,11 +420,11 @@ let rec doc_exp (ctxt : context) (E_aux (e, (l, annot)) as full_exp) =
       nest 2 (flow (break 1) [string "let"; string id; coloneq; doc_exp ctxt lexp]) ^^ hardline ^^ doc_exp ctxt e
   | E_struct fexps ->
       let args = List.map (doc_fexp ctxt) fexps in
-      braces (separate comma args)
+      braces (space ^^ nest 2 (separate hardline args) ^^ space)
   | E_field (exp, id) -> doc_exp ctxt exp ^^ dot ^^ doc_id_ctor ctxt id
   | E_struct_update (exp, fexps) ->
       let args = List.map (doc_fexp ctxt) fexps in
-      braces (doc_exp ctxt exp ^^ string " with " ^^ separate comma args)
+      braces (space ^^ doc_exp ctxt exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> string "set_" ^^ doc_lexp_deref ctxt le ^^ space ^^ doc_exp ctxt e
   | E_internal_return e -> nest 2 (flow (break 1) [string "return"; doc_exp ctxt e])
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")

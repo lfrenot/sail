@@ -322,7 +322,7 @@ val update_subrange_bits = pure {
   interpreter: "update_subrange",
   lem: "update_subrange_vec_dec",
   coq: "update_subrange_vec_dec",
-  lean: "Sail.BitVec.update_subrange",
+  lean: "Sail.BitVec.updateSubrange",
   _: "vector_update_subrange"
 } : forall 'n 'm 'o, 0 <= 'o <= 'm < 'n. (bits('n), int('m), int('o), bits('m - ('o - 1))) -> bits('n)
 $else
