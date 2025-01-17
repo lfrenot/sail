@@ -835,6 +835,32 @@ let register_refs_coq doc_id coq_record_update env registers =
   in
   separate hardline [generic_convs; refs; getters_setters]
 
+let register_refs_lean doc_id doc_typ registers =
+  let generic_convs = separate_map hardline string [""; "variable [MonadReg]"; ""; "open MonadReg"; ""] in
+  let register_ref (typ, id, _) =
+    let idd = doc_id id in
+    let typp = doc_typ typ in
+    concat
+      [
+        string "  set_";
+        idd;
+        colon;
+        space;
+        typp;
+        string " -> SailM Unit";
+        hardline;
+        string "  get_";
+        idd;
+        colon;
+        space;
+        string "SailM (";
+        typp;
+        string ")";
+      ]
+  in
+  let refs = separate_map hardline register_ref registers in
+  separate hardline [string "class MonadReg where"; refs; generic_convs]
+
 let generate_regstate_defs ctx env ast =
   let defs = ast.defs in
   let registers = find_registers defs in

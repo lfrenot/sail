@@ -264,6 +264,60 @@ let string_of_exp_con (E_aux (e, _)) =
   | E_vector _ -> "E_vector"
   | E_let _ -> "E_let"
 
+let string_of_pat_con (P_aux (p, _)) =
+  match p with
+  | P_app _ -> "P_app"
+  | P_wild -> "P_wild"
+  | P_lit _ -> "P_lit"
+  | P_or _ -> "P_or"
+  | P_not _ -> "P_not"
+  | P_as _ -> "P_as"
+  | P_typ _ -> "P_typ"
+  | P_id _ -> "P_id"
+  | P_var _ -> "P_var"
+  | P_vector _ -> "P_vector"
+  | P_vector_concat _ -> "P_vector_concat"
+  | P_vector_subrange _ -> "P_vector_subrange"
+  | P_tuple _ -> "P_tuple"
+  | P_list _ -> "P_list"
+  | P_cons _ -> "P_cons"
+  | P_string_append _ -> "P_string_append"
+  | P_struct _ -> "P_struct"
+
+let rec doc_pat ctxt apat_needed (P_aux (p, (l, annot)) as pat) =
+  let env = env_of_annot (l, annot) in
+  let typ = Env.expand_synonyms env (typ_of_annot (l, annot)) in
+  match p with
+  | P_typ (ptyp, p) ->
+      let doc_p = doc_pat ctxt true p in
+      doc_p
+  | P_id id -> doc_id_ctor id
+  | _ -> failwith ("Pattern " ^ string_of_pat_con pat ^ " " ^ string_of_pat pat ^ " not translatable yet.")
+
+(* Copied from the Coq PP *)
+let rebind_cast_pattern_vars pat typ exp =
+  let rec aux pat typ =
+    match (pat, typ) with
+    | P_aux (P_typ (target_typ, P_aux (P_id id, (l, ann))), _), source_typ when not (is_enum (env_of exp) id) ->
+        if Typ.compare target_typ source_typ == 0 then []
+        else (
+          let l = Parse_ast.Generated l in
+          let cast_annot = Type_check.replace_typ source_typ ann in
+          let e_annot = Type_check.mk_tannot (env_of exp) source_typ in
+          [LB_aux (LB_val (pat, E_aux (E_id id, (l, e_annot))), (l, ann))]
+        )
+    | P_aux (P_tuple pats, _), Typ_aux (Typ_tuple typs, _) -> List.concat (List.map2 aux pats typs)
+    | _ -> []
+  in
+  let add_lb (E_aux (_, ann) as exp) lb = E_aux (E_let (lb, exp), ann) in
+  (* Don't introduce new bindings at the top-level, we'd just go into a loop. *)
+  let lbs =
+    match (pat, typ) with
+    | P_aux (P_tuple pats, _), Typ_aux (Typ_tuple typs, _) -> List.concat (List.map2 aux pats typs)
+    | _ -> []
+  in
+  List.fold_left add_lb exp lbs
+
 let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
   let env = env_of_tannot annot in
   match e with
@@ -271,7 +325,21 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
   | E_lit l -> doc_lit l
   | E_app (Id_aux (Id "internal_pick", _), _) ->
       string "sorry" (* TODO replace by actual implementation of internal_pick *)
-  | E_internal_plet _ -> string "sorry" (* TODO replace by actual implementation of internal_plet *)
+  | E_internal_plet (pat, e1, e2) ->
+      (* doc_exp ctxt e1 ^^ hardline ^^ doc_exp ctxt e2 *)
+      let e0 = doc_pat ctx false pat in
+      let e1_pp = doc_exp ctx e1 in
+      let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
+      let e2_pp = doc_exp ctx e2' in
+      (* infix 0 1 middle e1_pp e2_pp *)
+      let e0_pp =
+        begin
+          match pat with
+          | P_aux (P_typ (_, P_aux (P_wild, _)), _) -> string ""
+          | _ -> separate space [string "let"; e0; string ":="] ^^ space
+        end
+      in
+      e0_pp ^^ e1_pp ^^ hardline ^^ e2_pp
   | E_app (f, args) ->
       let d_id =
         if Env.is_extern f env "lean" then string (Env.get_extern f env "lean")
@@ -280,7 +348,13 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
       let d_args = List.map (doc_exp ctx) args in
       nest 2 (parens (flow (break 1) (d_id :: d_args)))
   | E_vector vals -> failwith "vector found"
-  | E_typ (typ, e) -> parens (separate space [doc_exp ctx e; colon; doc_typ ctx typ])
+  | E_typ (typ, e) -> (
+      match e with
+      | E_aux (E_assign _, _) -> doc_exp ctx e
+      | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
+          string "return " ^^ nest 7 (parens (separate space [doc_exp ctx e; colon; doc_typ ctx typ]))
+      | _ -> parens (separate space [doc_exp ctx e; colon; doc_typ ctx typ])
+    )
   | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctx) es)
   | E_let (LB_aux (LB_val (lpat, lexp), _), e) ->
       let id =
@@ -297,6 +371,13 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
   | E_struct_update (exp, fexps) ->
       let args = List.map (doc_fexp ctx) fexps in
       braces (space ^^ doc_exp ctx exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
+  | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
+      match le_act with
+      | LE_id id | LE_typ (_, id) -> string "set_" ^^ doc_id_ctor id ^^ space ^^ doc_exp ctx e
+      | LE_deref e -> string "sorry /- deref -/"
+      | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
+    )
+  | E_internal_return e -> nest 2 (string "return" ^^ space ^^ nest 5 (doc_exp ctx e))
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp ctx (FE_aux (FE_fexp (field, exp), _)) = doc_id_ctor field ^^ string " := " ^^ doc_exp ctx exp
@@ -363,8 +444,7 @@ let doc_funcl_body (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let env = env_of_tannot (snd annot) in
   let ctx = initial_context env in
   let _, _, exp, _ = destruct_pexp pexp in
-  let is_monadic = effectful (effect_of exp) in
-  if is_monadic then nest 2 (flow (break 1) [string "return"; doc_exp ctx exp]) else doc_exp ctx exp
+  doc_exp (initial_context env) exp
 
 let doc_funcl ctx funcl =
   let comment, signature, env = doc_funcl_init funcl in
@@ -425,6 +505,10 @@ let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.en
 
 let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
+  let regs = State.find_registers defs in
+  let register_refs =
+    match regs with [] -> empty | _ -> State.register_refs_lean doc_id_ctor (doc_typ (initial_context env)) regs ^^ hardline
+  in
   let output : document = separate_map empty (doc_def (initial_context env)) defs in
-  print o output;
+  print o (register_refs ^^ output);
   ()
