@@ -137,11 +137,20 @@ let rec doc_typ ctxt (Typ_aux (t, _) as typ) =
       parens (string "BitVec " ^^ doc_nexp ctxt m)
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       string "Int" (* TODO This probably has to be generalized *)
+  | Typ_app (Id_aux (Id "register", _), t_app) ->
+      string "RegisterRef Unit Unit "
+      (* TODO: Replace units with real types. *) ^^ separate_map comma (doc_typ_app ctxt) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctxt) ts)
   | Typ_id (Id_aux (Id id, _)) -> string id
   | _ -> failwith ("Type " ^ string_of_typ_con typ ^ " " ^ string_of_typ typ ^ " not translatable yet.")
+
+and doc_typ_app ctxt (A_aux (t, _) as typ) =
+  match t with
+  | A_typ t' -> doc_typ ctxt t'
+  | A_bool nc -> failwith ("Constraint " ^ string_of_n_constraint nc ^ "not translatable yet.")
+  | A_nexp m -> doc_nexp ctxt m
 
 let rec captured_typ_var ((i, Typ_aux (t, _)) as typ) =
   match t with
@@ -274,7 +283,16 @@ let rec doc_exp ctxt (E_aux (e, (l, annot)) as full_exp) =
         | _ -> failwith "Let pattern not translatable yet."
       in
       nest 2 (flow (break 1) [string "let"; string id; coloneq; doc_exp ctxt lexp]) ^^ hardline ^^ doc_exp ctxt e
+  | E_struct fexps ->
+      let args = List.map (doc_fexp ctxt) fexps in
+      braces (space ^^ nest 2 (separate hardline args) ^^ space)
+  | E_field (exp, id) -> doc_exp ctxt exp ^^ dot ^^ doc_id_ctor id
+  | E_struct_update (exp, fexps) ->
+      let args = List.map (doc_fexp ctxt) fexps in
+      braces (space ^^ doc_exp ctxt exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
+
+and doc_fexp ctxt (FE_aux (FE_fexp (field, exp), _)) = doc_id_ctor field ^^ string " := " ^^ doc_exp ctxt exp
 
 let doc_binder ctxt i t =
   let paranthesizer =
