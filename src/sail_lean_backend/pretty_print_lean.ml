@@ -406,7 +406,7 @@ let rec doc_exp (ctxt : context) (E_aux (e, (l, annot)) as full_exp) =
       match e with
       | E_aux (E_assign _, _) -> doc_exp ctxt e
       | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
-          string "return " ^^ parens (separate space [doc_exp ctxt e; colon; doc_typ ctxt typ])
+          string "return " ^^ nest 7 (parens (separate space [doc_exp ctxt e; colon; doc_typ ctxt typ]))
       | _ -> parens (separate space [doc_exp ctxt e; colon; doc_typ ctxt typ])
     end
   | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctxt) es)
@@ -425,8 +425,13 @@ let rec doc_exp (ctxt : context) (E_aux (e, (l, annot)) as full_exp) =
   | E_struct_update (exp, fexps) ->
       let args = List.map (doc_fexp ctxt) fexps in
       braces (space ^^ doc_exp ctxt exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
-  | E_assign ((LE_aux (le_act, tannot) as le), e) -> string "set_" ^^ doc_lexp_deref ctxt le ^^ space ^^ doc_exp ctxt e
-  | E_internal_return e -> nest 2 (flow (break 1) [string "return"; doc_exp ctxt e])
+  | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
+      match le_act with
+      | LE_id id | LE_typ (_, id) -> string "set_" ^^ doc_id ctxt id ^^ space ^^ doc_exp ctxt e
+      | LE_deref e -> string "sorry /- deref -/"
+      | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
+    )
+  | E_internal_return e -> nest 2 (string "return" ^^ space ^^ nest 5 (doc_exp ctxt e))
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp ctxt (FE_aux (FE_fexp (field, exp), _)) = doc_id_ctor ctxt field ^^ string " := " ^^ doc_exp ctxt exp
