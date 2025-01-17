@@ -380,20 +380,20 @@ let rec doc_exp (ctxt : context) (E_aux (e, (l, annot)) as full_exp) =
   | E_app (Id_aux (Id "internal_pick", _), _) ->
       string "sorry" (* TODO replace by actual implementation of internal_pick *)
   | E_internal_plet (pat, e1, e2) ->
-    (* doc_exp ctxt e1 ^^ hardline ^^ doc_exp ctxt e2 *)
-    let e0 = doc_pat ctxt false pat in
-    let e1_pp = doc_exp ctxt e1 in
-    let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
-    let e2_pp = doc_exp ctxt e2' in
-    (* infix 0 1 middle e1_pp e2_pp *)
-    let e0_pp =
-      begin
-        match pat with
-        | P_aux (P_typ (_, P_aux (P_wild, _)), _) -> string ""
-        | _ -> separate space [string "let"; e0; string ":="] ^^ space
-      end
-    in
-    e0_pp ^^ e1_pp ^^ hardline ^^ e2_pp
+      (* doc_exp ctxt e1 ^^ hardline ^^ doc_exp ctxt e2 *)
+      let e0 = doc_pat ctxt false pat in
+      let e1_pp = doc_exp ctxt e1 in
+      let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
+      let e2_pp = doc_exp ctxt e2' in
+      (* infix 0 1 middle e1_pp e2_pp *)
+      let e0_pp =
+        begin
+          match pat with
+          | P_aux (P_typ (_, P_aux (P_wild, _)), _) -> string ""
+          | _ -> separate space [string "let"; e0; string ":="] ^^ space
+        end
+      in
+      e0_pp ^^ e1_pp ^^ hardline ^^ e2_pp
   | E_app (f, args) ->
       let d_id =
         if Env.is_extern f env "lean" then string (Env.get_extern f env "lean")
