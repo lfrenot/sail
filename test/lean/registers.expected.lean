@@ -3,8 +3,8 @@ import Out.Sail.Sail
 open Sail
 
 class MonadReg where
-  set_R0: (BitVec 64) -> SailM Unit
-  get_R0: SailM ((BitVec 64))
+  set_R0 : (BitVec 64) -> SailM Unit
+  get_R0 : SailM (BitVec 64)
 
 variable [MonadReg]
 

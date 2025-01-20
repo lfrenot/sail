@@ -844,6 +844,7 @@ let register_refs_lean doc_id doc_typ registers =
       [
         string "  set_";
         idd;
+        space;
         colon;
         space;
         typp;
@@ -851,11 +852,11 @@ let register_refs_lean doc_id doc_typ registers =
         hardline;
         string "  get_";
         idd;
+        space;
         colon;
         space;
-        string "SailM (";
+        string "SailM ";
         typp;
-        string ")";
       ]
   in
   let refs = separate_map hardline register_ref registers in
