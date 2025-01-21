@@ -336,10 +336,10 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
         begin
           match pat with
           | P_aux (P_typ (_, P_aux (P_wild, _)), _) -> string ""
-          | _ -> separate space [string "let"; e0; string ":="] ^^ space
+          | _ -> flow (break 1) [string "let"; e0; string ":="] ^^ space
         end
       in
-      e0_pp ^^ e1_pp ^^ hardline ^^ e2_pp
+      nest 2 (e0_pp ^^ e1_pp) ^^ hardline ^^ e2_pp
   | E_app (f, args) ->
       let d_id =
         if Env.is_extern f env "lean" then string (Env.get_extern f env "lean")
@@ -352,8 +352,8 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
       match e with
       | E_aux (E_assign _, _) -> doc_exp ctx e
       | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
-          string "return " ^^ nest 7 (parens (separate space [doc_exp ctx e; colon; doc_typ ctx typ]))
-      | _ -> parens (separate space [doc_exp ctx e; colon; doc_typ ctx typ])
+          string "return " ^^ nest 7 (parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ]))
+      | _ -> parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ])
     )
   | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctx) es)
   | E_let (LB_aux (LB_val (lpat, lexp), _), e) ->
