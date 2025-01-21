@@ -1,7 +1,23 @@
 namespace Sail
 
-/- Placeholder for a future implementation of the state monad some Sail functions use. -/
--- abbrev SailM := StateM Unit
+/- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
+abbrev Error := Unit
+
+structure SequentialSate ( Regs : Type ) where
+  regs : Regs
+  mem : Unit
+  tags : Unit
+
+abbrev PreSailM ( Regs: Type ) := EStateM Error (SequentialSate Regs)
+
+def read_reg {Register : Type -> Type} (register_lookup : ∀ T, Register T -> Regstate -> T) (reg : Register S) : PreSailM Regstate S := do
+  let r ← get
+  return register_lookup _ reg r.regs
+
+def write_reg {Register : Type -> Type} (register_set : ∀ T, Register T -> T -> Regstate -> Regstate) (reg : Register S) (s : S) : PreSailM Regstate Unit := do
+  let r ← get
+  set { r with regs := register_set _ reg s r.regs }
+  return ()
 
 namespace BitVec
 
@@ -33,12 +49,12 @@ def updateSubrange {w : Nat} (x : BitVec w) (hi lo : Nat) (y : BitVec (hi - lo +
 end BitVec
 end Sail
 
-structure RegisterRef (regstate regval a : Type) where
-  name : String
-  read_from : regstate -> a
-  write_to : a -> regstate -> regstate
-  of_regval : regval -> Option a
-  regval_of : a -> regval
+-- structure RegisterRef (regstate regval a : Type) where
+--   name : String
+--   read_from : regstate -> a
+--   write_to : a -> regstate -> regstate
+--   of_regval : regval -> Option a
+--   regval_of : a -> regval
 
 def undefined_bitvector (w : Nat) : BitVec w :=
   0

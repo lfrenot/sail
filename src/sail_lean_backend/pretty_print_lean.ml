@@ -504,13 +504,151 @@ let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.en
   | DEF_aux (DEF_pragma ("include_end", _, _), _) :: ds -> remove_imports ds (depth - 1)
   | d :: ds -> if depth > 0 then remove_imports ds depth else d :: remove_imports ds depth
 
+let opt_cons v = function None -> Some [v] | Some t -> Some (v :: t)
+
+let reg_type_name typ_id = prepend_id "register_" typ_id
+let reg_case_name typ_id = prepend_id "R_" typ_id
+let state_field_name typ_id = append_id typ_id "_s"
+let ref_name reg = append_id reg "_ref"
+let add_reg_typ env (typ_map, regs_map) (typ, id, has_init) =
+  let typ_id = State.id_of_regtyp IdSet.empty typ in
+  (Bindings.add typ_id typ typ_map, Bindings.update typ_id (opt_cons id) regs_map)
+
+let per_type_register_enum ctxt typ_id registers =
+  let reg_type_id = reg_type_name typ_id in
+  let reg_type_pp = doc_id_ctor reg_type_id in
+  separate hardline
+    [
+      string "inductive " ^^ reg_type_pp ^^ string " where";
+      separate_map hardline (fun r -> string "  | " ^^ doc_id_ctor r) registers;
+      string "deriving DecidableEq";
+      string "open " ^^ reg_type_pp;
+      empty;
+      empty;
+    ]
+
+let type_enum ctxt env type_map =
+  separate hardline
+    [
+      string "inductive Register : Type -> Type where";
+      separate_map hardline
+        (fun (typ_id, typ) ->
+          string "  | "
+          ^^ doc_id_ctor (reg_case_name typ_id)
+          ^^ space ^^ colon ^^ space
+          ^^ doc_id_ctor (reg_type_name typ_id)
+          ^^ string " -> Register " ^^ doc_typ ctxt typ
+        )
+        type_map;
+      empty;
+      separate_map hardline
+        (fun (typ_id, typ) ->
+          string "instance : Coe "
+          ^^ doc_id_ctor (reg_type_name typ_id)
+          ^^ space
+          ^^ parens (string "Register " ^^ doc_typ ctxt typ)
+          ^^ string " where" ^^ hardline ^^ string "  coe r := Register."
+          ^^ doc_id_ctor (reg_case_name typ_id)
+          ^^ string " r"
+        )
+        type_map;
+      empty;
+    ]
+
+let regstate ctxt env type_map =
+  separate hardline
+    [
+      string "structure Regstate where";
+      separate_map hardline
+        (fun (typ_id, typ) ->
+          string "  "
+          ^^ doc_id_ctor (state_field_name typ_id)
+          ^^ string " : "
+          ^^ doc_id_ctor (reg_type_name typ_id)
+          ^^ string " -> " ^^ doc_typ ctxt typ
+        )
+        type_map;
+      string "";
+      (* doc_field_updates ctxt (mk_typquant []) (mk_id "regstate")
+         (List.map (fun (typ_id, typ) -> (typ, state_field_name typ_id)) type_map); *)
+      empty;
+      (* A record literal can cause problems with record type inference (e.g., if there are no registers) *)
+      (* string "Definition init_regstate : regstate := Build_regstate";
+         separate_map hardline (fun _ -> string "  inhabitant") type_map;
+         string ".";
+         empty; *)
+    ]
+
+let reg_accessors ctxt env type_map =
+  separate hardline
+    [
+      string "def register_lookup {T : Type} (reg : Register T) (rs : Regstate) : T :=";
+      string "  match reg with";
+      separate_map hardline
+        (fun (typ_id, _typ) ->
+          string "  | Register."
+          ^^ doc_id_ctor (reg_case_name typ_id)
+          ^^ string " r => rs."
+          ^^ doc_id_ctor (state_field_name typ_id)
+          ^^ string " r"
+        )
+        type_map;
+      empty;
+      string "def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=";
+      string "  match reg with";
+      separate_map hardline
+        (fun (typ_id, _typ) ->
+          string "  | Register."
+          ^^ doc_id_ctor (reg_case_name typ_id)
+          ^^ string " r => fun v rs => "
+          ^^
+          let field = doc_id_ctor (state_field_name typ_id) in
+          let fexp =
+            string " rs with " ^^ field ^^ string " := fun r' => if r' = r then v else rs." ^^ field ^^ string " r' "
+          in
+          implicit_parens fexp
+        )
+        type_map;
+      empty;
+      empty;
+    ]
+
+let doc_reg_info env registers =
+  let bare_ctxt = initial_context env in
+  let type_map, type_regs_map = List.fold_left (add_reg_typ env) (Bindings.empty, Bindings.empty) registers in
+  let type_map = Bindings.bindings type_map in
+  let type_regs_map = Bindings.bindings type_regs_map in
+
+  let reg_enums = List.fold_left (fun pp (t, rs) -> pp ^^ per_type_register_enum bare_ctxt t rs) empty type_regs_map in
+  separate hardline
+    [
+      reg_enums;
+      type_enum bare_ctxt env type_map;
+      (* register_refs bare_ctxt env type_regs_map;
+         empty;
+         string "(* Definitions to support the lifting to the sequential monad *)"; *)
+      regstate bare_ctxt env type_map;
+      reg_accessors bare_ctxt env type_map;
+      string "abbrev SailM := PreSailM Regstate";
+      string "def read_reg {T : Type} : Register T -> SailM T := @Sail.read_reg _ T _ @register_lookup";
+      string "def write_reg {T : Type} : Register T -> T -> SailM Unit := @Sail.write_reg _ T _ @register_set";
+      empty;
+      empty;
+      (* string
+
+           "Definition register_accessors : register_accessors regstate register := (@register_lookup, @register_set).";
+         empty;
+         empty; *)
+    ]
+
 let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
   let register_refs =
-    match regs with
-    | [] -> empty
-    | _ -> State.register_refs_lean doc_id_ctor (doc_typ (initial_context env)) regs ^^ hardline
+    doc_reg_info env regs
+    (* match regs with
+       | [] -> empty
+       | _ -> State.register_refs_lean doc_id_ctor (doc_typ (initial_context env)) regs ^^ hardline *)
   in
   let output : document = separate_map empty (doc_def (initial_context env)) defs in
   print o (register_refs ^^ output);
