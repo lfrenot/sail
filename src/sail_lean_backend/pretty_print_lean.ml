@@ -507,7 +507,9 @@ let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
   let register_refs =
-    match regs with [] -> empty | _ -> State.register_refs_lean doc_id_ctor (doc_typ (initial_context env)) regs ^^ hardline
+    match regs with
+    | [] -> empty
+    | _ -> State.register_refs_lean doc_id_ctor (doc_typ (initial_context env)) regs ^^ hardline
   in
   let output : document = separate_map empty (doc_def (initial_context env)) defs in
   print o (register_refs ^^ output);
