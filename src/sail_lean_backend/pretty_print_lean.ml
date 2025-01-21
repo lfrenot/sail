@@ -292,6 +292,7 @@ let rec doc_pat ctxt apat_needed (P_aux (p, (l, annot)) as pat) =
       let doc_p = doc_pat ctxt true p in
       doc_p
   | P_id id -> doc_id_ctor id
+  | P_wild -> underscore
   | _ -> failwith ("Pattern " ^ string_of_pat_con pat ^ " " ^ string_of_pat pat ^ " not translatable yet.")
 
 (* Copied from the Coq PP *)

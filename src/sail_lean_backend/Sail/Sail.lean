@@ -1,7 +1,7 @@
 namespace Sail
 
 /- Placeholder for a future implementation of the state monad some Sail functions use. -/
-abbrev SailM := StateM Unit
+-- abbrev SailM := StateM Unit
 
 namespace BitVec
 
