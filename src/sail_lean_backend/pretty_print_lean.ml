@@ -322,7 +322,9 @@ let rebind_cast_pattern_vars pat typ exp =
 let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
   let env = env_of_tannot annot in
   match e with
-  | E_id id -> string (string_of_id id) (* TODO replace by a translating via a binding map *)
+  | E_id id ->
+      if Env.is_register id env then string "read_reg " ^^ doc_id_ctor id
+      else string (string_of_id id)
   | E_lit l -> doc_lit l
   | E_app (Id_aux (Id "internal_pick", _), _) ->
       string "sorry" (* TODO replace by actual implementation of internal_pick *)
@@ -354,6 +356,7 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
       | E_aux (E_assign _, _) -> doc_exp ctx e
       | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
           string "return " ^^ nest 7 (parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ]))
+      | E_aux (E_id id, _) when Env.is_register id (env_of e) -> doc_exp ctx e
       | _ -> parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ])
     )
   | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctx) es)
@@ -374,7 +377,7 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
       braces (space ^^ doc_exp ctx exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
       match le_act with
-      | LE_id id | LE_typ (_, id) -> string "set_" ^^ doc_id_ctor id ^^ space ^^ doc_exp ctx e
+      | LE_id id | LE_typ (_, id) -> string "write_reg " ^^ doc_id_ctor id ^^ space ^^ doc_exp ctx e
       | LE_deref e -> string "sorry /- deref -/"
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
