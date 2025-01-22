@@ -10,6 +10,9 @@ structure SequentialSate ( Regs : Type ) where
 
 abbrev PreSailM ( Regs: Type ) := EStateM Error (SequentialSate Regs)
 
+structure RegisterRef (Register : Type -> Type) (T : Type) where
+  reg : Register T
+
 def read_reg {Register : Type -> Type} (register_lookup : ∀ T, Register T -> Regstate -> T) (reg : Register S) : PreSailM Regstate S := do
   let r ← get
   return register_lookup _ reg r.regs
@@ -18,6 +21,9 @@ def write_reg {Register : Type -> Type} (register_set : ∀ T, Register T -> T -
   let r ← get
   set { r with regs := register_set _ reg s r.regs }
   return ()
+
+def reg_deref {Register : Type → Type} (read_reg : ∀ T, Register T → PreSailM Regstate T) (reg_ref : RegisterRef Register T) : PreSailM Regstate T := do
+  read_reg _ reg_ref.reg
 
 namespace BitVec
 
@@ -48,13 +54,3 @@ def updateSubrange {w : Nat} (x : BitVec w) (hi lo : Nat) (y : BitVec (hi - lo +
 
 end BitVec
 end Sail
-
--- structure RegisterRef (regstate regval a : Type) where
---   name : String
---   read_from : regstate -> a
---   write_to : a -> regstate -> regstate
---   of_regval : regval -> Option a
---   regval_of : a -> regval
-
-def undefined_bitvector (w : Nat) : BitVec w :=
-  0

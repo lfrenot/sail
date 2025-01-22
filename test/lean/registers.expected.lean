@@ -75,18 +75,13 @@ def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=
 abbrev SailM := PreSailM Regstate
 def read_reg {T : Type} : Register T -> SailM T := @Sail.read_reg _ T _ @register_lookup
 def write_reg {T : Type} : Register T -> T -> SailM Unit := @Sail.write_reg _ T _ @register_set
+def reg_deref {T : Type} : RegisterRef Register T → SailM T := @Sail.reg_deref _ T _ @read_reg
 
-def initialize_registers : SailM Unit :=
-  let w__0 := (undefined_bitvector 64)
-  set_R0 w__0
-  let w__1 := (undefined_bitvector 64)
-  set_R1 w__1
-  let w__2 := (undefined_int ())
-  set_INT w__2
-  let w__3 := (undefined_bool ())
-  set_BOOL w__3
-  let w__4 := (undefined_nat ())
-  set_NAT w__4
-  let w__5 := (undefined_bit ())
-  set_BIT w__5
+def initialize_registers : SailM Unit := do
+  write_reg R0 sorry
+  write_reg R1 sorry
+  write_reg INT sorry
+  write_reg BOOL sorry
+  write_reg NAT sorry
+  write_reg BIT sorry
 

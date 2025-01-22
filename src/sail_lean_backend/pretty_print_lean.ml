@@ -151,9 +151,7 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
     ->
       parens (string "BitVec " ^^ doc_nexp ctx m)
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp x, _)]) -> if provably_nneg ctx x then string "Nat" else string "Int"
-  | Typ_app (Id_aux (Id "register", _), t_app) ->
-      string "RegisterRef Unit Unit "
-      (* TODO: Replace units with real types. *) ^^ separate_map comma (doc_typ_app ctx) t_app
+  | Typ_app (Id_aux (Id "register", _), t_app) -> string "RegisterRef Register " ^^ separate_map comma (doc_typ_app ctx) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctx) ts)
@@ -344,6 +342,9 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
     let field_monadic = effectful (effect_of e) in
     doc_fexp field_monadic ctx fexp
   in
+  (* string (string_of_exp_con full_exp)
+     ^^ space
+     ^^ *)
   match e with
   | E_id id ->
       if Env.is_register id env then string "read_reg " ^^ doc_id_ctor id
@@ -352,6 +353,8 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
   | E_app (Id_aux (Id "undefined_int", _), _) (* TODO remove when we handle imports *)
   | E_app (Id_aux (Id "undefined_bit", _), _) (* TODO remove when we handle imports *)
   | E_app (Id_aux (Id "undefined_bitvector", _), _) (* TODO remove when we handle imports *)
+  | E_app (Id_aux (Id "undefined_bool", _), _) (* TODO remove when we handle imports *)
+  | E_app (Id_aux (Id "undefined_nat", _), _) (* TODO remove when we handle imports *)
   | E_app (Id_aux (Id "internal_pick", _), _) ->
       (* TODO replace by actual implementation of internal_pick *)
       string "sorry"
@@ -366,7 +369,7 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
         begin
           match pat with
           | P_aux (P_typ (_, P_aux (P_wild, _)), _) -> string ""
-          | _ -> flow (break 1) [string "let"; e0; string ":="] ^^ space
+          | _ -> flow (break 1) [string "let"; e0; string "←"] ^^ space
         end
       in
       nest 2 (e0_pp ^^ e1_pp) ^^ hardline ^^ e2_pp
@@ -571,90 +574,106 @@ let per_type_register_enum ctxt typ_id registers =
     ]
 
 let type_enum ctxt env type_map =
-  separate hardline
-    [
-      string "inductive Register : Type -> Type where";
-      separate_map hardline
-        (fun (typ_id, typ) ->
-          string "  | "
-          ^^ doc_id_ctor (reg_case_name typ_id)
-          ^^ space ^^ colon ^^ space
-          ^^ doc_id_ctor (reg_type_name typ_id)
-          ^^ string " -> Register " ^^ doc_typ ctxt typ
-        )
-        type_map;
-      empty;
-      separate_map hardline
-        (fun (typ_id, typ) ->
-          string "instance : Coe "
-          ^^ doc_id_ctor (reg_type_name typ_id)
-          ^^ space
-          ^^ parens (string "Register " ^^ doc_typ ctxt typ)
-          ^^ string " where" ^^ hardline ^^ string "  coe r := Register."
-          ^^ doc_id_ctor (reg_case_name typ_id)
-          ^^ string " r"
-        )
-        type_map;
-      empty;
-    ]
+  match type_map with
+  | [] -> string "def Register (T : Type) := T"
+  | _ ->
+      separate hardline
+        [
+          string "inductive Register : Type -> Type where";
+          separate_map hardline
+            (fun (typ_id, typ) ->
+              string "  | "
+              ^^ doc_id_ctor (reg_case_name typ_id)
+              ^^ space ^^ colon ^^ space
+              ^^ doc_id_ctor (reg_type_name typ_id)
+              ^^ string " -> Register " ^^ doc_typ ctxt typ
+            )
+            type_map;
+          empty;
+          separate_map hardline
+            (fun (typ_id, typ) ->
+              string "instance : Coe "
+              ^^ doc_id_ctor (reg_type_name typ_id)
+              ^^ space
+              ^^ parens (string "Register " ^^ doc_typ ctxt typ)
+              ^^ string " where" ^^ hardline ^^ string "  coe r := Register."
+              ^^ doc_id_ctor (reg_case_name typ_id)
+              ^^ string " r"
+            )
+            type_map;
+          empty;
+        ]
 
 let regstate ctxt env type_map =
-  separate hardline
-    [
-      string "structure Regstate where";
-      separate_map hardline
-        (fun (typ_id, typ) ->
-          string "  "
-          ^^ doc_id_ctor (state_field_name typ_id)
-          ^^ string " : "
-          ^^ doc_id_ctor (reg_type_name typ_id)
-          ^^ string " -> " ^^ doc_typ ctxt typ
-        )
-        type_map;
-      string "";
-      (* doc_field_updates ctxt (mk_typquant []) (mk_id "regstate")
-         (List.map (fun (typ_id, typ) -> (typ, state_field_name typ_id)) type_map); *)
-      empty;
-      (* A record literal can cause problems with record type inference (e.g., if there are no registers) *)
-      (* string "Definition init_regstate : regstate := Build_regstate";
-         separate_map hardline (fun _ -> string "  inhabitant") type_map;
-         string ".";
-         empty; *)
-    ]
+  match type_map with
+  | [] -> string "abbrev Regstate := Unit"
+  | _ ->
+      separate hardline
+        [
+          string "structure Regstate where";
+          separate_map hardline
+            (fun (typ_id, typ) ->
+              string "  "
+              ^^ doc_id_ctor (state_field_name typ_id)
+              ^^ string " : "
+              ^^ doc_id_ctor (reg_type_name typ_id)
+              ^^ string " -> " ^^ doc_typ ctxt typ
+            )
+            type_map;
+          string "";
+          (* doc_field_updates ctxt (mk_typquant []) (mk_id "regstate")
+             (List.map (fun (typ_id, typ) -> (typ, state_field_name typ_id)) type_map); *)
+          empty;
+          (* A record literal can cause problems with record type inference (e.g., if there are no registers) *)
+          (* string "Definition init_regstate : regstate := Build_regstate";
+             separate_map hardline (fun _ -> string "  inhabitant") type_map;
+             string ".";
+             empty; *)
+        ]
 
 let reg_accessors ctxt env type_map =
-  separate hardline
-    [
-      string "def register_lookup {T : Type} (reg : Register T) (rs : Regstate) : T :=";
-      string "  match reg with";
-      separate_map hardline
-        (fun (typ_id, _typ) ->
-          string "  | Register."
-          ^^ doc_id_ctor (reg_case_name typ_id)
-          ^^ string " r => rs."
-          ^^ doc_id_ctor (state_field_name typ_id)
-          ^^ string " r"
-        )
-        type_map;
-      empty;
-      string "def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=";
-      string "  match reg with";
-      separate_map hardline
-        (fun (typ_id, _typ) ->
-          string "  | Register."
-          ^^ doc_id_ctor (reg_case_name typ_id)
-          ^^ string " r => fun v rs => "
-          ^^
-          let field = doc_id_ctor (state_field_name typ_id) in
-          let fexp =
-            string " rs with " ^^ field ^^ string " := fun r' => if r' = r then v else rs." ^^ field ^^ string " r' "
-          in
-          implicit_parens fexp
-        )
-        type_map;
-      empty;
-      empty;
-    ]
+  match type_map with
+  | [] ->
+      separate hardline
+        [
+          string "def register_lookup {T : Type} (reg : Register T) (_ : Regstate) : T := reg";
+          string "def register_set {T : Type} (_ : Register T) : T -> Regstate -> Regstate := fun _ _ => ()";
+        ]
+  | _ ->
+      separate hardline
+        [
+          string "def register_lookup {T : Type} (reg : Register T) (rs : Regstate) : T :=";
+          string "  match reg with";
+          separate_map hardline
+            (fun (typ_id, _typ) ->
+              string "  | Register."
+              ^^ doc_id_ctor (reg_case_name typ_id)
+              ^^ string " r => rs."
+              ^^ doc_id_ctor (state_field_name typ_id)
+              ^^ string " r"
+            )
+            type_map;
+          empty;
+          string "def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=";
+          string "  match reg with";
+          separate_map hardline
+            (fun (typ_id, _typ) ->
+              string "  | Register."
+              ^^ doc_id_ctor (reg_case_name typ_id)
+              ^^ string " r => fun v rs => "
+              ^^
+              let field = doc_id_ctor (state_field_name typ_id) in
+              let fexp =
+                string " rs with " ^^ field
+                ^^ string " := fun r' => if r' = r then v else rs."
+                ^^ field ^^ string " r' "
+              in
+              implicit_parens fexp
+            )
+            type_map;
+          empty;
+          empty;
+        ]
 
 let doc_reg_info env registers =
   let bare_ctxt = initial_context env in
@@ -675,8 +694,7 @@ let doc_reg_info env registers =
       string "abbrev SailM := PreSailM Regstate";
       string "def read_reg {T : Type} : Register T -> SailM T := @Sail.read_reg _ T _ @register_lookup";
       string "def write_reg {T : Type} : Register T -> T -> SailM Unit := @Sail.write_reg _ T _ @register_set";
-      empty;
-      empty;
+      string "def reg_deref {T : Type} : RegisterRef Register T → SailM T := @Sail.reg_deref _ T _ @read_reg";
       (* string
 
            "Definition register_accessors : register_accessors regstate register := (@register_lookup, @register_set).";
@@ -687,12 +705,7 @@ let doc_reg_info env registers =
 let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
-  let register_refs =
-    doc_reg_info env regs
-    (* match regs with
-       | [] -> empty
-       | _ -> State.register_refs_lean doc_id_ctor (doc_typ (initial_context env)) regs ^^ hardline *)
-  in
+  let register_refs = doc_reg_info env regs in
   let output : document = separate_map empty (doc_def (initial_context env)) defs in
-  print o (register_refs ^^ output);
+  print o (register_refs ^^ hardline ^^ hardline ^^ output);
   ()
