@@ -2,6 +2,8 @@ import Out.Sail.Sail
 
 open Sail
 
+def cr_type := (BitVec 8)
+
 
 def Register (T : Type) := T
 abbrev Regstate := Unit
@@ -11,8 +13,6 @@ abbrev SailM := PreSailM Regstate
 def read_reg {T : Type} : Register T -> SailM T := @Sail.read_reg _ T _ @register_lookup
 def write_reg {T : Type} : Register T -> T -> SailM Unit := @Sail.write_reg _ T _ @register_set
 def reg_deref {T : Type} : RegisterRef Register T → SailM T := @Sail.reg_deref _ T _ @read_reg
-
-def cr_type := (BitVec 8)
 
 def undefined_cr_type (lit : Unit) : SailM (BitVec 8) := do
   sorry

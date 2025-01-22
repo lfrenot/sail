@@ -151,7 +151,8 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
     ->
       parens (string "BitVec " ^^ doc_nexp ctx m)
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp x, _)]) -> if provably_nneg ctx x then string "Nat" else string "Int"
-  | Typ_app (Id_aux (Id "register", _), t_app) -> string "RegisterRef Register " ^^ separate_map comma (doc_typ_app ctx) t_app
+  | Typ_app (Id_aux (Id "register", _), t_app) ->
+      string "RegisterRef Register " ^^ separate_map comma (doc_typ_app ctx) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctx) ts)
@@ -536,11 +537,16 @@ let doc_typdef ctx (TD_aux (td, tannot) as full_typdef) =
       nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
-let doc_def ctx (DEF_aux (aux, def_annot) as def) =
-  match aux with
-  | DEF_fundef fdef -> group (doc_fundef ctx fdef) ^/^ hardline
-  | DEF_type tdef -> group (doc_typdef ctx tdef) ^/^ hardline
-  | _ -> empty
+let rec doc_defs_aux ctx defs types fundefs =
+  match defs with
+  | [] -> (types, fundefs)
+  | DEF_aux (DEF_fundef fdef, _) :: defs' ->
+      doc_defs_aux ctx defs' types (fundefs ^^ group (doc_fundef ctx fdef) ^/^ hardline)
+  | DEF_aux (DEF_type tdef, _) :: defs' ->
+      doc_defs_aux ctx defs' (types ^^ group (doc_typdef ctx tdef) ^/^ hardline) fundefs
+  | _ :: defs' -> doc_defs_aux ctx defs' types fundefs
+
+let doc_defs ctx defs = doc_defs_aux ctx defs empty empty
 
 (* Remove all imports for now, they will be printed in other files. Probably just for testing. *)
 let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.env) def list) depth =
@@ -706,6 +712,8 @@ let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
   let register_refs = doc_reg_info env regs in
-  let output : document = separate_map empty (doc_def (initial_context env)) defs in
-  print o (register_refs ^^ hardline ^^ hardline ^^ output);
+  let types, fundefs = doc_defs (initial_context env) defs in
+  (* let types = separate empty types in
+     let fundefs = separate empty fundefs in *)
+  print o (types ^^ register_refs ^^ hardline ^^ hardline ^^ fundefs);
   ()
