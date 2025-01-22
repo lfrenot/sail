@@ -3,12 +3,12 @@ namespace Sail
 /- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
 abbrev Error := Unit
 
-structure SequentialSate ( Regs : Type ) where
+structure SequentialSate (Regs : Type) where
   regs : Regs
   mem : Unit
   tags : Unit
 
-abbrev PreSailM ( Regs: Type ) := EStateM Error (SequentialSate Regs)
+abbrev PreSailM (Regs : Type) := EStateM Error (SequentialSate Regs)
 
 structure RegisterRef (Register : Type → Type) (T : Type) where
   reg : Register T
@@ -19,7 +19,7 @@ def read_reg {Register : Type → Type} (register_lookup : ∀ T, Register T →
 
 def write_reg {Register : Type → Type} (register_set : ∀ T, Register T → T → Regstate → Regstate) (reg : Register T) (t : T) : PreSailM Regstate Unit := do
   let r ← get
-  set { r with regs := register_set _ reg t r.regs }
+  set {r with regs := register_set _ reg t r.regs}
   return ()
 
 def reg_deref {Register : Type → Type} (read_reg : ∀ T, Register T → PreSailM Regstate T) (reg_ref : RegisterRef Register T) : PreSailM Regstate T := do
