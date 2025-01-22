@@ -141,7 +141,7 @@ let lean_rewrites =
     ("attach_effects", []);
     ("remove_blocks", []);
     ("attach_effects", []);
-    ("letbind_effects", []);
+    (*("letbind_effects", []);*)
     ("remove_e_assign", []);
     ("attach_effects", []);
     ("internal_lets", []);

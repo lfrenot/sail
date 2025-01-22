@@ -29,3 +29,8 @@ function mk_struct(i, b) = {
     field2 = b
   }
 }
+
+val undef_struct : bit -> My_struct
+function undef_struct (x) = {
+  (undefined_My_struct(): My_struct)
+}
