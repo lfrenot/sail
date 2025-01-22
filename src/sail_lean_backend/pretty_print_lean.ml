@@ -9,7 +9,10 @@ open Rewriter
 open PPrint
 open Pretty_print_common
 
+type global_context = { effect_info : Effects.side_effect_info }
+
 type context = {
+  global : global_context;
   env : Type_check.env;
       (** The typechecking environment of the current function. This environment is reset using [initial_context] when
           we start processing a new function.  *)
@@ -18,7 +21,13 @@ type context = {
   kid_id_renames_rev : kid Bindings.t;  (** Inverse of the [kid_id_renames] mapping. *)
 }
 
-let initial_context env = { env; kid_id_renames = KBindings.empty; kid_id_renames_rev = Bindings.empty }
+let initial_context env =
+  {
+    global = { effect_info = Effects.empty_side_effect_info };
+    env;
+    kid_id_renames = KBindings.empty;
+    kid_id_renames_rev = Bindings.empty;
+  }
 
 let add_single_kid_id_rename ctx id kid =
   let kir =
@@ -319,21 +328,39 @@ let rebind_cast_pattern_vars pat typ exp =
   in
   List.fold_left add_lb exp lbs
 
-let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
+let wrap_with_pure (needs_return : bool) (d : document) =
+  if needs_return then parens (nest 2 (flow space [string "pure"; d])) else d
+
+let wrap_with_left_arrow (needs_return : bool) (d : document) =
+  if needs_return then parens (nest 2 (flow space [string "←"; d])) else d
+
+let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
   let env = env_of_tannot annot in
+  let d_of_arg arg =
+    let arg_monadic = effectful (effect_of arg) in
+    wrap_with_left_arrow arg_monadic (doc_exp arg_monadic ctx arg)
+  in
+  let d_of_field (FE_aux (FE_fexp (field, e), _) as fexp) =
+    let field_monadic = effectful (effect_of e) in
+    doc_fexp field_monadic ctx fexp
+  in
   match e with
   | E_id id ->
       if Env.is_register id env then string "read_reg " ^^ doc_id_ctor id
-      else string (string_of_id id)
-  | E_lit l -> doc_lit l
+      else wrap_with_pure as_monadic (string (string_of_id id))
+  | E_lit l -> wrap_with_pure as_monadic (doc_lit l)
+  | E_app (Id_aux (Id "undefined_int", _), _) (* TODO remove when we handle imports *)
+  | E_app (Id_aux (Id "undefined_bit", _), _) (* TODO remove when we handle imports *)
+  | E_app (Id_aux (Id "undefined_bitvector", _), _) (* TODO remove when we handle imports *)
   | E_app (Id_aux (Id "internal_pick", _), _) ->
-      string "sorry" (* TODO replace by actual implementation of internal_pick *)
+      (* TODO replace by actual implementation of internal_pick *)
+      string "sorry"
   | E_internal_plet (pat, e1, e2) ->
       (* doc_exp ctxt e1 ^^ hardline ^^ doc_exp ctxt e2 *)
       let e0 = doc_pat ctx false pat in
-      let e1_pp = doc_exp ctx e1 in
+      let e1_pp = doc_exp false ctx e1 in
       let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
-      let e2_pp = doc_exp ctx e2' in
+      let e2_pp = doc_exp false ctx e2' in
       (* infix 0 1 middle e1_pp e2_pp *)
       let e0_pp =
         begin
@@ -346,20 +373,25 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
   | E_app (f, args) ->
       let d_id =
         if Env.is_extern f env "lean" then string (Env.get_extern f env "lean")
-        else doc_exp ctx (E_aux (E_id f, (l, annot)))
+        else doc_exp false ctx (E_aux (E_id f, (l, annot)))
       in
-      let d_args = List.map (doc_exp ctx) args in
-      nest 2 (parens (flow (break 1) (d_id :: d_args)))
+      let d_args = List.map d_of_arg args in
+      let fn_monadic = not (Effects.function_is_pure f ctx.global.effect_info) in
+      nest 2 (wrap_with_pure (as_monadic && fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
   | E_vector vals -> failwith "vector found"
-  | E_typ (typ, e) -> (
-      match e with
-      | E_aux (E_assign _, _) -> doc_exp ctx e
-      | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
-          string "return " ^^ nest 7 (parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ]))
-      | E_aux (E_id id, _) when Env.is_register id (env_of e) -> doc_exp ctx e
-      | _ -> parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ])
-    )
-  | E_tuple es -> parens (separate_map (comma ^^ space) (doc_exp ctx) es)
+  | E_typ (typ, e) ->
+      if effectful (effect_of e) then
+        parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
+      else wrap_with_pure as_monadic (parens (separate space [doc_exp false ctx e; colon; doc_typ ctx typ]))
+  (* | E_typ (typ, e) -> (
+     match e with
+         | E_aux (E_assign _, _) -> doc_exp ctx e
+         | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
+             string "return " ^^ nest 7 (parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ]))
+         | E_aux (E_id id, _) when Env.is_register id (env_of e) -> doc_exp ctx e
+         | _ -> parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ])
+       ) *)
+  | E_tuple es -> wrap_with_pure as_monadic (parens (separate_map (comma ^^ space) d_of_arg es))
   | E_let (LB_aux (LB_val (lpat, lexp), _), e) ->
       let id =
         match pat_is_plain_binder env lpat with
@@ -367,24 +399,34 @@ let rec doc_exp ctx (E_aux (e, (l, annot)) as full_exp) =
         | Some None -> "x" (* TODO fresh name or wildcard instead of x *)
         | _ -> failwith "Let pattern not translatable yet."
       in
-      nest 2 (flow (break 1) [string "let"; string id; coloneq; doc_exp ctx lexp]) ^^ hardline ^^ doc_exp ctx e
+      let decl_val =
+        if effectful (effect_of lexp) then [string "←"; string "do"; doc_exp true ctx lexp]
+        else [coloneq; doc_exp false ctx lexp]
+      in
+      nest 2 (flow (break 1) ([string "let"; string id] @ decl_val)) ^^ hardline ^^ doc_exp as_monadic ctx e
+  | E_internal_return e -> doc_exp false ctx e (* ??? *)
   | E_struct fexps ->
-      let args = List.map (doc_fexp ctx) fexps in
-      braces (space ^^ nest 2 (separate hardline args) ^^ space)
-  | E_field (exp, id) -> doc_exp ctx exp ^^ dot ^^ doc_id_ctor id
+      let args = List.map d_of_field fexps in
+      wrap_with_pure as_monadic (braces (space ^^ align (separate hardline args) ^^ space))
+  | E_field (exp, id) ->
+      (* TODO *)
+      wrap_with_pure as_monadic (doc_exp false ctx exp ^^ dot ^^ doc_id_ctor id)
   | E_struct_update (exp, fexps) ->
-      let args = List.map (doc_fexp ctx) fexps in
-      braces (space ^^ doc_exp ctx exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space)
+      let args = List.map d_of_field fexps in
+      (* TODO *)
+      wrap_with_pure as_monadic
+        (braces (space ^^ doc_exp false ctx exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space))
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
       match le_act with
-      | LE_id id | LE_typ (_, id) -> string "write_reg " ^^ doc_id_ctor id ^^ space ^^ doc_exp ctx e
+      | LE_id id | LE_typ (_, id) -> string "write_reg " ^^ doc_id_ctor id ^^ space ^^ doc_exp false ctx e
       | LE_deref e -> string "sorry /- deref -/"
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
-  | E_internal_return e -> nest 2 (string "return" ^^ space ^^ nest 5 (doc_exp ctx e))
+  (* | E_internal_return e -> nest 2 (string "return" ^^ space ^^ nest 5 (doc_exp false ctx e)) *)
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
-and doc_fexp ctx (FE_aux (FE_fexp (field, exp), _)) = doc_id_ctor field ^^ string " := " ^^ doc_exp ctx exp
+and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) =
+  doc_id_ctor field ^^ string " := " ^^ wrap_with_left_arrow with_arrow (doc_exp false ctx e)
 
 let doc_binder ctx i t =
   let paranthesizer =
@@ -439,16 +481,14 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let decl_val = [doc_ret_typ; coloneq] in
   (* Add do block for stateful functions *)
   let decl_val = if is_monadic then decl_val @ [string "do"] else decl_val in
-  ( typ_quant_comment,
-    separate space ([string "def"; string (string_of_id id)] @ binders @ [colon; doc_ret_typ; coloneq]),
-    env
-  )
+  (typ_quant_comment, separate space ([string "def"; string (string_of_id id)] @ binders @ [colon] @ decl_val), env)
 
 let doc_funcl_body (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let env = env_of_tannot (snd annot) in
   let ctx = initial_context env in
   let _, _, exp, _ = destruct_pexp pexp in
-  doc_exp (initial_context env) exp
+  let is_monadic = effectful (effect_of exp) in
+  doc_exp is_monadic (initial_context env) exp
 
 let doc_funcl ctx funcl =
   let comment, signature, env = doc_funcl_init funcl in

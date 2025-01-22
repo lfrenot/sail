@@ -103,6 +103,7 @@ type library_style = BBV | Stdpp
 type global_context = {
   types_mod : string; (* Name of the types module for disambiguation *)
   avoid_target_names : StringSet.t;
+  type_rename : id Bindings.t;
   effect_info : Effects.side_effect_info;
   library_style : library_style;
 }
@@ -134,6 +135,7 @@ let empty_ctxt =
       {
         types_mod = "";
         avoid_target_names = StringSet.empty;
+        type_rename = Bindings.empty;
         effect_info = Effects.empty_side_effect_info;
         library_style = BBV;
       };
@@ -218,6 +220,7 @@ let string_id avoid (Id_aux (i, _)) =
 let doc_id ctxt id = string (string_id ctxt.global.avoid_target_names id)
 
 let doc_id_type global env (Id_aux (i, _) as id) =
+  let (Id_aux (i, _) as id) = Bindings.find_opt id global.type_rename |> Option.value ~default:id in
   (* If a type is shadowed by a definition, use the types module to disambiguate *)
   let is_shadowed () =
     if global.types_mod = "" then false
@@ -1584,6 +1587,7 @@ let doc_exp, doc_let =
                   in
                   let combinator = combinator ^ dir in
                   let body_ctxt = add_single_kid_id_rename ctxt loopvar (mk_kid ("loop_" ^ string_of_id loopvar)) in
+                  let body_ctxt = { body_ctxt with is_monadic = effectful (effect_of body) } in
                   let from_exp_pp, to_exp_pp, step_exp_pp = (expY from_exp, expY to_exp, expY step_exp) in
                   (* The body has the right type for deciding whether a proof is necessary *)
                   let vartuple_retyped = check_exp env (strip_exp vartuple) (general_typ_of body) in
@@ -1598,7 +1602,9 @@ let doc_exp, doc_let =
                          (parens (prefix 2 1 (group body_lambda) body_pp))
                       )
                   in
-                  loop_pp
+                  if ctxt.is_monadic && (not body_ctxt.is_monadic) && has_early_return body then
+                    parens (string "pure_early_return_embed" ^/^ loop_pp)
+                  else loop_pp
               | _ -> raise (Reporting.err_unreachable l __POS__ "Unexpected number of arguments for loop combinator")
             end
           | Id_aux (Id (("while#" | "until#" | "while#t" | "until#t") as combinator), _) ->
@@ -4384,6 +4390,20 @@ let builtin_target_names defs =
   in
   List.fold_left check_def StringSet.empty defs
 
+(* Coq doesn't allow constructors and types to have the same name, so calculate a rewrite for type names. *)
+(* TODO: once I finally write a decent name management mechanism, use it to make sure that it's not renaming
+   into something else. *)
+let calculate_type_rewrite env =
+  let constructors =
+    Bindings.fold (fun _ -> IdSet.union) (Env.get_enums env) IdSet.empty
+    |> Bindings.fold (fun _ (_, l) s -> List.fold_left (fun s (_, id) -> IdSet.add id s) s l) (Env.get_records env)
+    |> Bindings.fold
+         (fun _ (_, l) s -> List.fold_left (fun s tu -> IdSet.add (type_union_id tu) s) s l)
+         (Env.get_variants env)
+  in
+  let clashes = IdSet.filter (Env.bound_typ_id env) constructors in
+  IdSet.fold (fun id m -> Bindings.add id (append_id id "_typ") m) clashes Bindings.empty
+
 let pp_ast_coq library_style (types_file, types_modules) (defs_file, defs_modules) type_defs_module opt_coq_isla ctx
     effect_info type_env ({ defs; _ } as ast) concurrency_monad_params top_line suppress_MR_M =
   try
@@ -4391,7 +4411,8 @@ let pp_ast_coq library_style (types_file, types_modules) (defs_file, defs_module
     let exc_typ = find_exc_typ defs in
     let unimplemented = find_unimplemented defs in
     let avoid_target_names = builtin_target_names defs in
-    let global = { types_mod = type_defs_module; avoid_target_names; effect_info; library_style } in
+    let type_rename = calculate_type_rewrite type_env in
+    let global = { types_mod = type_defs_module; avoid_target_names; type_rename; effect_info; library_style } in
     let bare_doc_id = doc_id { empty_ctxt with global } in
     let registers = State.find_registers defs in
     let generic_eq_types = types_used_with_generic_eq defs in
