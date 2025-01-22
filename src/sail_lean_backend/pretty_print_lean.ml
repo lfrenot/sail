@@ -585,14 +585,14 @@ let type_enum ctxt env type_map =
   | _ ->
       separate hardline
         [
-          string "inductive Register : Type -> Type where";
+          string "inductive Register : Type → Type where";
           separate_map hardline
             (fun (typ_id, typ) ->
               string "  | "
               ^^ doc_id_ctor (reg_case_name typ_id)
               ^^ space ^^ colon ^^ space
               ^^ doc_id_ctor (reg_type_name typ_id)
-              ^^ string " -> Register " ^^ doc_typ ctxt typ
+              ^^ string " → Register " ^^ doc_typ ctxt typ
             )
             type_map;
           empty;
@@ -623,7 +623,7 @@ let regstate ctxt env type_map =
               ^^ doc_id_ctor (state_field_name typ_id)
               ^^ string " : "
               ^^ doc_id_ctor (reg_type_name typ_id)
-              ^^ string " -> " ^^ doc_typ ctxt typ
+              ^^ string " → " ^^ doc_typ ctxt typ
             )
             type_map;
           string "";
@@ -643,7 +643,7 @@ let reg_accessors ctxt env type_map =
       separate hardline
         [
           string "def register_lookup {T : Type} (reg : Register T) (_ : Regstate) : T := reg";
-          string "def register_set {T : Type} (_ : Register T) : T -> Regstate -> Regstate := fun _ _ => ()";
+          string "def register_set {T : Type} (_ : Register T) : T → Regstate → Regstate := fun _ _ => ()";
         ]
   | _ ->
       separate hardline
@@ -660,7 +660,7 @@ let reg_accessors ctxt env type_map =
             )
             type_map;
           empty;
-          string "def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=";
+          string "def register_set {T : Type} (reg : Register T) : T → Regstate → Regstate :=";
           string "  match reg with";
           separate_map hardline
             (fun (typ_id, _typ) ->
@@ -698,8 +698,8 @@ let doc_reg_info env registers =
       regstate bare_ctxt env type_map;
       reg_accessors bare_ctxt env type_map;
       string "abbrev SailM := PreSailM Regstate";
-      string "def read_reg {T : Type} : Register T -> SailM T := @Sail.read_reg _ T _ @register_lookup";
-      string "def write_reg {T : Type} : Register T -> T -> SailM Unit := @Sail.write_reg _ T _ @register_set";
+      string "def read_reg {T : Type} : Register T → SailM T := @Sail.read_reg _ T _ @register_lookup";
+      string "def write_reg {T : Type} : Register T → T → SailM Unit := @Sail.write_reg _ T _ @register_set";
       string "def reg_deref {T : Type} : RegisterRef Register T → SailM T := @Sail.reg_deref _ T _ @read_reg";
       (* string
 

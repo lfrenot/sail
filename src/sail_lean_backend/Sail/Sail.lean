@@ -10,16 +10,16 @@ structure SequentialSate ( Regs : Type ) where
 
 abbrev PreSailM ( Regs: Type ) := EStateM Error (SequentialSate Regs)
 
-structure RegisterRef (Register : Type -> Type) (T : Type) where
+structure RegisterRef (Register : Type → Type) (T : Type) where
   reg : Register T
 
-def read_reg {Register : Type -> Type} (register_lookup : ∀ T, Register T -> Regstate -> T) (reg : Register S) : PreSailM Regstate S := do
+def read_reg {Register : Type → Type} (register_lookup : ∀ T, Register T → Regstate → T) (reg : Register T) : PreSailM Regstate T := do
   let r ← get
   return register_lookup _ reg r.regs
 
-def write_reg {Register : Type -> Type} (register_set : ∀ T, Register T -> T -> Regstate -> Regstate) (reg : Register S) (s : S) : PreSailM Regstate Unit := do
+def write_reg {Register : Type → Type} (register_set : ∀ T, Register T → T → Regstate → Regstate) (reg : Register T) (t : T) : PreSailM Regstate Unit := do
   let r ← get
-  set { r with regs := register_set _ reg s r.regs }
+  set { r with regs := register_set _ reg t r.regs }
   return ()
 
 def reg_deref {Register : Type → Type} (read_reg : ∀ T, Register T → PreSailM Regstate T) (reg_ref : RegisterRef Register T) : PreSailM Regstate T := do

@@ -29,12 +29,12 @@ deriving DecidableEq
 open register_nat
 
 
-inductive Register : Type -> Type where
-  | R_bit : register_bit -> Register (BitVec 1)
-  | R_bitvector_64 : register_bitvector_64 -> Register (BitVec 64)
-  | R_bool : register_bool -> Register Bool
-  | R_int : register_int -> Register Int
-  | R_nat : register_nat -> Register Nat
+inductive Register : Type → Type where
+  | R_bit : register_bit → Register (BitVec 1)
+  | R_bitvector_64 : register_bitvector_64 → Register (BitVec 64)
+  | R_bool : register_bool → Register Bool
+  | R_int : register_int → Register Int
+  | R_nat : register_nat → Register Nat
 
 instance : Coe register_bit (Register (BitVec 1)) where
   coe r := Register.R_bit r
@@ -48,11 +48,11 @@ instance : Coe register_nat (Register Nat) where
   coe r := Register.R_nat r
 
 structure Regstate where
-  bit_s : register_bit -> (BitVec 1)
-  bitvector_64_s : register_bitvector_64 -> (BitVec 64)
-  bool_s : register_bool -> Bool
-  int_s : register_int -> Int
-  nat_s : register_nat -> Nat
+  bit_s : register_bit → (BitVec 1)
+  bitvector_64_s : register_bitvector_64 → (BitVec 64)
+  bool_s : register_bool → Bool
+  int_s : register_int → Int
+  nat_s : register_nat → Nat
 
 
 def register_lookup {T : Type} (reg : Register T) (rs : Regstate) : T :=
@@ -63,7 +63,7 @@ def register_lookup {T : Type} (reg : Register T) (rs : Regstate) : T :=
   | Register.R_int r => rs.int_s r
   | Register.R_nat r => rs.nat_s r
 
-def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=
+def register_set {T : Type} (reg : Register T) : T → Regstate → Regstate :=
   match reg with
   | Register.R_bit r => fun v rs => { rs with bit_s := fun r' => if r' = r then v else rs.bit_s r' }
   | Register.R_bitvector_64 r => fun v rs => { rs with bitvector_64_s := fun r' => if r' = r then v else rs.bitvector_64_s r' }
@@ -73,8 +73,8 @@ def register_set {T : Type} (reg : Register T) : T -> Regstate -> Regstate :=
 
 
 abbrev SailM := PreSailM Regstate
-def read_reg {T : Type} : Register T -> SailM T := @Sail.read_reg _ T _ @register_lookup
-def write_reg {T : Type} : Register T -> T -> SailM Unit := @Sail.write_reg _ T _ @register_set
+def read_reg {T : Type} : Register T → SailM T := @Sail.read_reg _ T _ @register_lookup
+def write_reg {T : Type} : Register T → T → SailM Unit := @Sail.write_reg _ T _ @register_set
 def reg_deref {T : Type} : RegisterRef Register T → SailM T := @Sail.reg_deref _ T _ @read_reg
 
 def initialize_registers : SailM Unit := do
