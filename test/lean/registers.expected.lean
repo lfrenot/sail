@@ -20,7 +20,7 @@ abbrev RegisterType : Register → Type
   | .R1 => (BitVec 64)
   | .R0 => (BitVec 64)
 
-abbrev SailM := @PreSailM Register RegisterType
+abbrev SailM := @PreSailM Register RegisterType _ _
 
 def test : SailM Int := do
   writeReg INT (HAdd.hAdd (← readReg INT) 1)
