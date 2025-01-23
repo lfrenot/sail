@@ -422,7 +422,7 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
       match le_act with
       | LE_id id | LE_typ (_, id) -> string "writeReg " ^^ doc_id_ctor id ^^ space ^^ doc_exp false ctx e
-      | LE_deref e -> string "sorry /- deref -/"
+      | LE_deref e' -> string "writeRegRef " ^^ doc_exp false ctx e' ^^ space ^^ doc_exp false ctx e
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
   (* | E_internal_return e -> nest 2 (string "return" ^^ space ^^ nest 5 (doc_exp false ctx e)) *)
