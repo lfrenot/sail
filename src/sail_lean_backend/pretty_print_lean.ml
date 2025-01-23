@@ -151,7 +151,8 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
     ->
       parens (string "BitVec " ^^ doc_nexp ctx m)
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp x, _)]) -> if provably_nneg ctx x then string "Nat" else string "Int"
-  | Typ_app (Id_aux (Id "register", _), t_app) -> string "RegisterRef RegisterType " ^^ separate_map comma (doc_typ_app ctx) t_app
+  | Typ_app (Id_aux (Id "register", _), t_app) ->
+      string "RegisterRef RegisterType " ^^ separate_map comma (doc_typ_app ctx) t_app
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctx) ts)
