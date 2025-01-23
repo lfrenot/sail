@@ -20,13 +20,17 @@ abbrev RegisterType : Register → Type
   | .R1 => (BitVec 64)
   | .R0 => (BitVec 64)
 
-abbrev SailM := PreSailM Register RegisterType
+abbrev SailM := @PreSailM Register RegisterType
+
+def test : SailM Int := do
+  writeReg INT (HAdd.hAdd (← readReg INT) 1)
+  readReg INT
 
 def initialize_registers : SailM Unit := do
-  write_reg R0 sorry
-  write_reg R1 sorry
-  write_reg INT sorry
-  write_reg BOOL sorry
-  write_reg NAT sorry
-  write_reg BIT sorry
+  writeReg R0 sorry
+  writeReg R1 sorry
+  writeReg INT sorry
+  writeReg BOOL sorry
+  writeReg NAT sorry
+  writeReg BIT sorry
 

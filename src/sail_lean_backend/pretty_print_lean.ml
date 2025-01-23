@@ -347,7 +347,7 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
      ^^ *)
   match e with
   | E_id id ->
-      if Env.is_register id env then string "read_reg " ^^ doc_id_ctor id
+      if Env.is_register id env then string "readReg " ^^ doc_id_ctor id
       else wrap_with_pure as_monadic (string (string_of_id id))
   | E_lit l -> wrap_with_pure as_monadic (doc_lit l)
   | E_app (Id_aux (Id "undefined_int", _), _) (* TODO remove when we handle imports *)
@@ -421,7 +421,7 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
         (braces (space ^^ doc_exp false ctx exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space))
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
       match le_act with
-      | LE_id id | LE_typ (_, id) -> string "write_reg " ^^ doc_id_ctor id ^^ space ^^ doc_exp false ctx e
+      | LE_id id | LE_typ (_, id) -> string "writeReg " ^^ doc_id_ctor id ^^ space ^^ doc_exp false ctx e
       | LE_deref e -> string "sorry /- deref -/"
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
@@ -591,7 +591,7 @@ let doc_reg_info env registers =
     [
       register_enums registers;
       type_enum bare_ctx registers;
-      string "abbrev SailM := PreSailM Register RegisterType";
+      string "abbrev SailM := @PreSailM Register RegisterType";
       empty;
       empty;
     ]

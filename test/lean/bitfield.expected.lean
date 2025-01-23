@@ -12,7 +12,7 @@ open Register
 abbrev RegisterType : Register → Type
   | .R => (BitVec 8)
 
-abbrev SailM := PreSailM Register RegisterType
+abbrev SailM := @PreSailM Register RegisterType
 
 def undefined_cr_type (lit : Unit) : SailM (BitVec 8) := do
   sorry
@@ -81,5 +81,5 @@ def _set_cr_type_LT (r_ref : RegisterRef Register RegisterType) (v : (BitVec 1))
   sorry /- deref -/
 
 def initialize_registers : SailM Unit := do
-  write_reg R (undefined_cr_type ())
+  writeReg R (undefined_cr_type ())
 

@@ -8,3 +8,8 @@ register INT : int
 register BOOL : bool
 register NAT : nat
 register BIT : bit
+
+function test () -> int = {
+  INT = INT + 1;
+  INT
+}
