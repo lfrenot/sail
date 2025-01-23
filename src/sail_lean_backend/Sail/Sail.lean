@@ -14,7 +14,7 @@ structure SequentialState (RegisterType : Register → Type) where
   tags : Unit
 
 inductive RegisterRef : Type → Type where
-  | Reg (r: Register) : RegisterRef (RegisterType r)
+  | Reg (r : Register) : RegisterRef (RegisterType r)
 
 abbrev PreSailM (RegisterType : Register → Type) :=
   EStateM Error (SequentialState RegisterType)
@@ -30,7 +30,8 @@ def readReg (r : Register) : PreSailM RegisterType (RegisterType r) := do
 def readRegRef (reg_ref : @RegisterRef Register RegisterType α) : PreSailM RegisterType α := do
   match reg_ref with | .Reg r => readReg r
 
-def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) : PreSailM RegisterType Unit := do
+def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) :
+  PreSailM RegisterType Unit := do
   match reg_ref with | .Reg r => writeReg r a
 
 def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef reg_ref
