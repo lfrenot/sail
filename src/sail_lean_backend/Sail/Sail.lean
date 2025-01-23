@@ -1,29 +1,29 @@
+import Std.Data.DHashMap
 namespace Sail
 
 /- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
 abbrev Error := Unit
 
-structure SequentialSate (Regs : Type) where
-  regs : Regs
+structure SequentialSate (Register : Type) (RegisterType : Register → Type) [BEq Register] [Hashable Register] where
+  regs : Std.DHashMap Register RegisterType
   mem : Unit
   tags : Unit
 
-abbrev PreSailM (Regs : Type) := EStateM Error (SequentialSate Regs)
+structure RegisterRef (Register : Type) (RegisterType : Register → Type) where
+  reg : Register
 
-structure RegisterRef (Register : Type → Type) (T : Type) where
-  reg : Register T
+abbrev PreSailM (Register : Type) (RegisterType : Register → Type) [BEq Register] [Hashable Register] := EStateM Error (SequentialSate Register RegisterType)
 
-def read_reg {Register : Type → Type} (register_lookup : ∀ T, Register T → Regstate → T) (reg : Register T) : PreSailM Regstate T := do
-  let r ← get
-  return register_lookup _ reg r.regs
+def write_reg {RegisterType : Register → Type} [BEq Register] [Hashable Register] (r : Register) (v : RegisterType r) : PreSailM Register RegisterType Unit :=
+  modify fun s => { s with regs := s.regs.insert r v }
 
-def write_reg {Register : Type → Type} (register_set : ∀ T, Register T → T → Regstate → Regstate) (reg : Register T) (t : T) : PreSailM Regstate Unit := do
-  let r ← get
-  set {r with regs := register_set _ reg t r.regs}
-  return ()
+def read_reg {RegisterType : Register → Type} [BEq Register] [LawfulBEq Register] [Hashable Register] (r : Register) : PreSailM Register RegisterType (RegisterType r) := do
+  let .some s := (← get).regs.get? r
+    | throw ()
+  pure s
 
-def reg_deref {Register : Type → Type} (read_reg : ∀ T, Register T → PreSailM Regstate T) (reg_ref : RegisterRef Register T) : PreSailM Regstate T := do
-  read_reg _ reg_ref.reg
+def reg_deref {RegisterType : Register → Type} [BEq Register] [LawfulBEq Register] [Hashable Register] (reg_ref : RegisterRef Register RegisterType) : PreSailM Register RegisterType (RegisterType reg_ref.reg) := do
+  read_reg reg_ref.reg
 
 namespace BitVec
 

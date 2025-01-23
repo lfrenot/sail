@@ -579,133 +579,39 @@ let per_type_register_enum ctxt typ_id registers =
       empty;
     ]
 
-let type_enum ctxt env type_map =
-  match type_map with
-  | [] -> string "def Register (T : Type) := T"
+let register_enums ctx registers =
+  match registers with
+  | [] -> string "abbrev Register := Unit"
   | _ ->
       separate hardline
         [
-          string "inductive Register : Type → Type where";
-          separate_map hardline
-            (fun (typ_id, typ) ->
-              string "  | "
-              ^^ doc_id_ctor (reg_case_name typ_id)
-              ^^ space ^^ colon ^^ space
-              ^^ doc_id_ctor (reg_type_name typ_id)
-              ^^ string " → Register " ^^ doc_typ ctxt typ
-            )
-            type_map;
-          empty;
-          separate_map hardline
-            (fun (typ_id, typ) ->
-              string "instance : Coe "
-              ^^ doc_id_ctor (reg_type_name typ_id)
-              ^^ space
-              ^^ parens (string "Register " ^^ doc_typ ctxt typ)
-              ^^ string " where" ^^ hardline ^^ string "  coe r := Register."
-              ^^ doc_id_ctor (reg_case_name typ_id)
-              ^^ string " r"
-            )
-            type_map;
+          string "inductive Register : Type where";
+          separate_map hardline (fun (_, id, _) -> string "  | " ^^ doc_id_ctor id) registers;
+          string "  deriving DecidableEq, Hashable";
+          string "open Register";
           empty;
         ]
 
-let regstate ctxt env type_map =
-  match type_map with
-  | [] -> string "abbrev Regstate := Unit"
+let type_enum ctx registers =
+  match registers with
+  | [] -> string "abbrev RegisterType : Register → Type := fun _ => Unit"
   | _ ->
       separate hardline
         [
-          string "structure Regstate where";
+          string "abbrev RegisterType : Register → Type";
           separate_map hardline
-            (fun (typ_id, typ) ->
-              string "  "
-              ^^ doc_id_ctor (state_field_name typ_id)
-              ^^ string " : "
-              ^^ doc_id_ctor (reg_type_name typ_id)
-              ^^ string " → " ^^ doc_typ ctxt typ
-            )
-            type_map;
-          string "";
-          (* doc_field_updates ctxt (mk_typquant []) (mk_id "regstate")
-             (List.map (fun (typ_id, typ) -> (typ, state_field_name typ_id)) type_map); *)
-          empty;
-          (* A record literal can cause problems with record type inference (e.g., if there are no registers) *)
-          (* string "Definition init_regstate : regstate := Build_regstate";
-             separate_map hardline (fun _ -> string "  inhabitant") type_map;
-             string ".";
-             empty; *)
-        ]
-
-let reg_accessors ctxt env type_map =
-  match type_map with
-  | [] ->
-      separate hardline
-        [
-          string "def register_lookup {T : Type} (reg : Register T) (_ : Regstate) : T := reg";
-          string "def register_set {T : Type} (_ : Register T) : T → Regstate → Regstate := fun _ _ => ()";
-        ]
-  | _ ->
-      separate hardline
-        [
-          string "def register_lookup {T : Type} (reg : Register T) (rs : Regstate) : T :=";
-          string "  match reg with";
-          separate_map hardline
-            (fun (typ_id, _typ) ->
-              string "  | Register."
-              ^^ doc_id_ctor (reg_case_name typ_id)
-              ^^ string " r => rs."
-              ^^ doc_id_ctor (state_field_name typ_id)
-              ^^ string " r"
-            )
-            type_map;
-          empty;
-          string "def register_set {T : Type} (reg : Register T) : T → Regstate → Regstate :=";
-          string "  match reg with";
-          separate_map hardline
-            (fun (typ_id, _typ) ->
-              string "  | Register."
-              ^^ doc_id_ctor (reg_case_name typ_id)
-              ^^ string " r => fun v rs => "
-              ^^
-              let field = doc_id_ctor (state_field_name typ_id) in
-              let fexp =
-                string " rs with " ^^ field
-                ^^ string " := fun r' => if r' = r then v else rs."
-                ^^ field ^^ string " r' "
-              in
-              implicit_parens fexp
-            )
-            type_map;
-          empty;
+            (fun (typ, id, _) -> string "  | ." ^^ doc_id_ctor id ^^ string " => " ^^ doc_typ ctx typ)
+            registers;
           empty;
         ]
 
 let doc_reg_info env registers =
-  let bare_ctxt = initial_context env in
-  let type_map, type_regs_map = List.fold_left (add_reg_typ env) (Bindings.empty, Bindings.empty) registers in
-  let type_map = Bindings.bindings type_map in
-  let type_regs_map = Bindings.bindings type_regs_map in
-
-  let reg_enums = List.fold_left (fun pp (t, rs) -> pp ^^ per_type_register_enum bare_ctxt t rs) empty type_regs_map in
+  let bare_ctx = initial_context env in
   separate hardline
     [
-      reg_enums;
-      type_enum bare_ctxt env type_map;
-      (* register_refs bare_ctxt env type_regs_map;
-         empty;
-         string "(* Definitions to support the lifting to the sequential monad *)"; *)
-      regstate bare_ctxt env type_map;
-      reg_accessors bare_ctxt env type_map;
-      string "abbrev SailM := PreSailM Regstate";
-      string "def read_reg {T : Type} : Register T → SailM T := @Sail.read_reg _ T _ @register_lookup";
-      string "def write_reg {T : Type} : Register T → T → SailM Unit := @Sail.write_reg _ T _ @register_set";
-      string "def reg_deref {T : Type} : RegisterRef Register T → SailM T := @Sail.reg_deref _ T _ @read_reg";
-      (* string
-
-           "Definition register_accessors : register_accessors regstate register := (@register_lookup, @register_set).";
-         empty;
-         empty; *)
+      register_enums bare_ctx registers;
+      type_enum bare_ctx registers;
+      string "abbrev SailM := PreSailM Register RegisterType";
     ]
 
 let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
