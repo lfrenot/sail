@@ -16,23 +16,23 @@ structure SequentialSate where
 inductive RegisterRef : Type → Type where
   | Reg (r: Register) : RegisterRef (RegisterType r)
 
-abbrev PreSailM := EStateM Error (SequentialSate (Register := Register) (RegisterType := RegisterType))
+abbrev PreSailM := EStateM Error (@SequentialSate Register RegisterType _ _)
 
-def writeReg (r : Register) (v : RegisterType r) : PreSailM (Register := Register) (RegisterType := RegisterType) Unit :=
+def writeReg (r : Register) (v : RegisterType r) : @PreSailM Register RegisterType _ _ Unit :=
   modify fun s => { s with regs := s.regs.insert r v }
 
-def readReg (r : Register) : PreSailM (Register := Register) (RegisterType := RegisterType) (RegisterType r) := do
+def readReg (r : Register) : @PreSailM Register RegisterType _ _ (RegisterType r) := do
   let .some s := (← get).regs.get? r
     | throw ()
   pure s
 
-def readRegRef (reg_ref : RegisterRef (Register := Register) (RegisterType := RegisterType) α) : PreSailM (Register := Register) (RegisterType := RegisterType) α := do
+def readRegRef (reg_ref : @RegisterRef Register RegisterType α) : @PreSailM Register RegisterType _ _ α := do
   match reg_ref with | .Reg r => readReg r
 
-def writeRegRef (reg_ref : RegisterRef (Register := Register) (RegisterType := RegisterType) α) (a : α) : PreSailM (Register := Register) (RegisterType := RegisterType) Unit := do
+def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) : @PreSailM Register RegisterType _ _ Unit := do
   match reg_ref with | .Reg r => writeReg r a
 
-def reg_deref (reg_ref : RegisterRef (Register := Register) (RegisterType := RegisterType) α) := readRegRef reg_ref
+def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef reg_ref
 
 end Regs
 
