@@ -8,7 +8,7 @@ variable {Register : Type} {RegisterType : Register → Type} [DecidableEq Regis
 /- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
 abbrev Error := Unit
 
-structure SequentialSate where
+structure SequentialState (RegisterType : Register → Type) where
   regs : Std.DHashMap Register RegisterType
   mem : Unit
   tags : Unit
@@ -16,20 +16,21 @@ structure SequentialSate where
 inductive RegisterRef : Type → Type where
   | Reg (r: Register) : RegisterRef (RegisterType r)
 
-abbrev PreSailM := EStateM Error (@SequentialSate Register RegisterType _ _)
+abbrev PreSailM (RegisterType : Register → Type) :=
+  EStateM Error (SequentialState RegisterType)
 
-def writeReg (r : Register) (v : RegisterType r) : @PreSailM Register RegisterType _ _ Unit :=
+def writeReg (r : Register) (v : RegisterType r) : PreSailM RegisterType Unit :=
   modify fun s => { s with regs := s.regs.insert r v }
 
-def readReg (r : Register) : @PreSailM Register RegisterType _ _ (RegisterType r) := do
+def readReg (r : Register) : PreSailM RegisterType (RegisterType r) := do
   let .some s := (← get).regs.get? r
     | throw ()
   pure s
 
-def readRegRef (reg_ref : @RegisterRef Register RegisterType α) : @PreSailM Register RegisterType _ _ α := do
+def readRegRef (reg_ref : @RegisterRef Register RegisterType α) : PreSailM RegisterType α := do
   match reg_ref with | .Reg r => readReg r
 
-def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) : @PreSailM Register RegisterType _ _ Unit := do
+def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) : PreSailM RegisterType Unit := do
   match reg_ref with | .Reg r => writeReg r a
 
 def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef reg_ref

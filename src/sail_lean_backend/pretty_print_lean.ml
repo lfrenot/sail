@@ -591,7 +591,7 @@ let doc_reg_info env registers =
     [
       register_enums registers;
       type_enum bare_ctx registers;
-      string "abbrev SailM := @PreSailM Register RegisterType _ _";
+      string "abbrev SailM := PreSailM RegisterType";
       empty;
       empty;
     ]
