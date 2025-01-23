@@ -13,8 +13,8 @@ structure SequentialState (RegisterType : Register → Type) where
   mem : Unit
   tags : Unit
 
-inductive RegisterRef : Type → Type where
-  | Reg (r : Register) : RegisterRef (RegisterType r)
+inductive RegisterRef (RegisterType : Register → Type) : Type → Type where
+  | Reg (r : Register) : RegisterRef _ (RegisterType r)
 
 abbrev PreSailM (RegisterType : Register → Type) :=
   EStateM Error (SequentialState RegisterType)
