@@ -3,7 +3,7 @@ namespace Sail
 
 section Regs
 
-variable {Register : Type} {RegisterType : Register → Type} [BEq Register] [LawfulBEq Register] [Hashable Register]
+variable {Register : Type} {RegisterType : Register → Type} [DecidableEq Register] [Hashable Register]
 
 /- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
 abbrev Error := Unit
