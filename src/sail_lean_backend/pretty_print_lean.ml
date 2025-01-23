@@ -151,8 +151,7 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
     ->
       parens (string "BitVec " ^^ doc_nexp ctx m)
   | Typ_app (Id_aux (Id "atom", _), [A_aux (A_nexp x, _)]) -> if provably_nneg ctx x then string "Nat" else string "Int"
-  | Typ_app (Id_aux (Id "register", _), t_app) ->
-      string "RegisterRef Register " ^^ separate_map comma (doc_typ_app ctx) t_app
+  | Typ_app (Id_aux (Id "register", _), t_app) -> string "RegisterRef Register RegisterType"
   | Typ_app (Id_aux (Id "implicit", _), [A_aux (A_nexp (Nexp_aux (Nexp_var ki, _)), _)]) ->
       underscore (* TODO check if the type of implicit arguments can really be always inferred *)
   | Typ_tuple ts -> parens (separate_map (space ^^ string "×" ^^ space) (doc_typ ctx) ts)
@@ -566,60 +565,43 @@ let add_reg_typ env (typ_map, regs_map) (typ, id, has_init) =
   let typ_id = State.id_of_regtyp IdSet.empty typ in
   (Bindings.add typ_id typ typ_map, Bindings.update typ_id (opt_cons id) regs_map)
 
-let per_type_register_enum ctxt typ_id registers =
-  let reg_type_id = reg_type_name typ_id in
-  let reg_type_pp = doc_id_ctor reg_type_id in
+let register_enums registers =
   separate hardline
     [
-      string "inductive " ^^ reg_type_pp ^^ string " where";
-      separate_map hardline (fun r -> string "  | " ^^ doc_id_ctor r) registers;
-      string "deriving DecidableEq";
-      string "open " ^^ reg_type_pp;
-      empty;
+      string "inductive Register : Type where";
+      separate_map hardline (fun (_, id, _) -> string "  | " ^^ doc_id_ctor id) registers;
+      string "  deriving DecidableEq, Hashable";
+      string "open Register";
       empty;
     ]
 
-let register_enums ctx registers =
-  match registers with
-  | [] -> string "abbrev Register := Unit"
-  | _ ->
-      separate hardline
-        [
-          string "inductive Register : Type where";
-          separate_map hardline (fun (_, id, _) -> string "  | " ^^ doc_id_ctor id) registers;
-          string "  deriving DecidableEq, Hashable";
-          string "open Register";
-          empty;
-        ]
-
 let type_enum ctx registers =
-  match registers with
-  | [] -> string "abbrev RegisterType : Register → Type := fun _ => Unit"
-  | _ ->
-      separate hardline
-        [
-          string "abbrev RegisterType : Register → Type";
-          separate_map hardline
-            (fun (typ, id, _) -> string "  | ." ^^ doc_id_ctor id ^^ string " => " ^^ doc_typ ctx typ)
-            registers;
-          empty;
-        ]
+  separate hardline
+    [
+      string "abbrev RegisterType : Register → Type";
+      separate_map hardline
+        (fun (typ, id, _) -> string "  | ." ^^ doc_id_ctor id ^^ string " => " ^^ doc_typ ctx typ)
+        registers;
+      empty;
+    ]
 
 let doc_reg_info env registers =
   let bare_ctx = initial_context env in
   separate hardline
     [
-      register_enums bare_ctx registers;
+      register_enums registers;
       type_enum bare_ctx registers;
       string "abbrev SailM := PreSailM Register RegisterType";
+      empty;
+      empty;
     ]
 
 let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
-  let register_refs = doc_reg_info env regs in
+  let register_refs = match regs with [] -> empty | _ -> doc_reg_info env regs in
   let types, fundefs = doc_defs (initial_context env) defs in
   (* let types = separate empty types in
      let fundefs = separate empty fundefs in *)
-  print o (types ^^ register_refs ^^ hardline ^^ hardline ^^ fundefs);
+  print o (types ^^ register_refs ^^ fundefs);
   ()
