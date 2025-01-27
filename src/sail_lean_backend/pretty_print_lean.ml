@@ -162,7 +162,6 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   | Typ_id (Id_aux (Id id, _)) -> string id
   | Typ_app (Id_aux (Id "range", _), [A_aux (A_nexp low, _); A_aux (A_nexp high, _)]) ->
       if provably_nneg ctx low then string "Nat" else string "Int"
-  | Typ_exist (_, _, ty') -> doc_typ ctx ty'
   | _ -> failwith ("Type " ^ string_of_typ_con typ ^ " " ^ string_of_typ typ ^ " not translatable yet.")
 
 and doc_typ_app ctx (A_aux (t, _) as typ) =
