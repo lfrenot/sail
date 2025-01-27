@@ -381,8 +381,8 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       let fn_monadic = not (Effects.function_is_pure f ctx.global.effect_info) in
       nest 2 (wrap_with_pure (as_monadic && fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
   | E_vector vals ->
-      let vals = List.map (doc_exp false ctx) vals in
-      brackets (nest 2 (flow (comma ^^ break 1) vals)) ^^ string ".toArray.toVector"
+      wrap_with_pure as_monadic (brackets (nest 2 (flow (comma ^^ break 1) (List.map d_of_arg vals))))
+      ^^ string ".toArray.toVector"
   | E_typ (typ, e) ->
       if effectful (effect_of e) then
         parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
