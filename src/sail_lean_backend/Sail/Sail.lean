@@ -1,7 +1,42 @@
+import Std.Data.DHashMap
 namespace Sail
 
-/- Placeholder for a future implementation of the state monad some Sail functions use. -/
-abbrev SailM := StateM Unit
+section Regs
+
+variable {Register : Type} {RegisterType : Register → Type} [DecidableEq Register] [Hashable Register]
+
+/- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
+abbrev Error := Unit
+
+structure SequentialState (RegisterType : Register → Type) where
+  regs : Std.DHashMap Register RegisterType
+  mem : Unit
+  tags : Unit
+
+inductive RegisterRef (RegisterType : Register → Type) : Type → Type where
+  | Reg (r : Register) : RegisterRef _ (RegisterType r)
+
+abbrev PreSailM (RegisterType : Register → Type) :=
+  EStateM Error (SequentialState RegisterType)
+
+def writeReg (r : Register) (v : RegisterType r) : PreSailM RegisterType Unit :=
+  modify fun s => { s with regs := s.regs.insert r v }
+
+def readReg (r : Register) : PreSailM RegisterType (RegisterType r) := do
+  let .some s := (← get).regs.get? r
+    | throw ()
+  pure s
+
+def readRegRef (reg_ref : @RegisterRef Register RegisterType α) : PreSailM RegisterType α := do
+  match reg_ref with | .Reg r => readReg r
+
+def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) :
+  PreSailM RegisterType Unit := do
+  match reg_ref with | .Reg r => writeReg r a
+
+def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef reg_ref
+
+end Regs
 
 namespace BitVec
 
@@ -32,13 +67,3 @@ def updateSubrange {w : Nat} (x : BitVec w) (hi lo : Nat) (y : BitVec (hi - lo +
 
 end BitVec
 end Sail
-
-structure RegisterRef (regstate regval a : Type) where
-  name : String
-  read_from : regstate -> a
-  write_to : a -> regstate -> regstate
-  of_regval : regval -> Option a
-  regval_of : a -> regval
-
-def undefined_bitvector (w : Nat) : BitVec w :=
-  0
