@@ -343,9 +343,6 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
     let field_monadic = effectful (effect_of e) in
     doc_fexp field_monadic ctx fexp
   in
-  (* string (string_of_exp_con full_exp)
-     ^^ space
-     ^^ *)
   match e with
   | E_id id ->
       if Env.is_register id env then string "readReg " ^^ doc_id_ctor id
@@ -360,12 +357,10 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       (* TODO replace by actual implementation of internal_pick *)
       string "sorry"
   | E_internal_plet (pat, e1, e2) ->
-      (* doc_exp ctxt e1 ^^ hardline ^^ doc_exp ctxt e2 *)
       let e0 = doc_pat ctx false pat in
       let e1_pp = doc_exp false ctx e1 in
       let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
       let e2_pp = doc_exp false ctx e2' in
-      (* infix 0 1 middle e1_pp e2_pp *)
       let e0_pp =
         begin
           match pat with
@@ -387,14 +382,6 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       if effectful (effect_of e) then
         parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
       else wrap_with_pure as_monadic (parens (separate space [doc_exp false ctx e; colon; doc_typ ctx typ]))
-  (* | E_typ (typ, e) -> (
-     match e with
-         | E_aux (E_assign _, _) -> doc_exp ctx e
-         | E_aux (E_app (Id_aux (Id "internal_pick", _), _), _) ->
-             string "return " ^^ nest 7 (parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ]))
-         | E_aux (E_id id, _) when Env.is_register id (env_of e) -> doc_exp ctx e
-         | _ -> parens (flow (break 1) [doc_exp ctx e; colon; doc_typ ctx typ])
-       ) *)
   | E_tuple es -> wrap_with_pure as_monadic (parens (separate_map (comma ^^ space) d_of_arg es))
   | E_let (LB_aux (LB_val (lpat, lexp), _), e) ->
       let id =
@@ -426,7 +413,6 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       | LE_deref e' -> string "writeRegRef " ^^ doc_exp false ctx e' ^^ space ^^ doc_exp false ctx e
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
-  (* | E_internal_return e -> nest 2 (string "return" ^^ space ^^ nest 5 (doc_exp false ctx e)) *)
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) =
@@ -602,7 +588,5 @@ let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.
   let regs = State.find_registers defs in
   let register_refs = match regs with [] -> empty | _ -> doc_reg_info env regs in
   let types, fundefs = doc_defs (initial_context env) defs in
-  (* let types = separate empty types in
-     let fundefs = separate empty fundefs in *)
   print o (types ^^ register_refs ^^ fundefs);
   ()
