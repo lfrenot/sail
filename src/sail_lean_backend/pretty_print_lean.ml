@@ -306,7 +306,8 @@ let rec doc_pat (P_aux (p, (l, annot)) as pat) =
   | P_id id -> fixup_match_id id |> doc_id_ctor
   | P_tuple pats -> separate (string ", ") (List.map doc_pat pats) |> parens
   | P_list pats -> separate (string ", ") (List.map doc_pat pats) |> brackets
-  | P_app (cons, pats) -> doc_id_ctor cons ^^ space ^^ separate_map (string ", ") doc_pat pats
+  | P_app (Id_aux (Id "None", _), p) -> string "none"
+  | P_app (cons, pats) -> doc_id_ctor (fixup_match_id cons) ^^ space ^^ separate_map (string ", ") doc_pat pats
   | _ -> failwith ("Pattern " ^ string_of_pat_con pat ^ " " ^ string_of_pat pat ^ " not translatable yet.")
 
 (* Copied from the Coq PP *)
@@ -419,8 +420,8 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       wrap_with_pure as_monadic
         (braces (space ^^ doc_exp false ctx exp ^^ string " with " ^^ separate (comma ^^ space) args ^^ space))
   | E_match (discr, brs) ->
-      let cases = hardline ^^ separate_map hardline (fun br -> doc_match_clause ctx br) brs ^^ hardline in
-      string "match " ^^ doc_exp (effectful (effect_of discr)) ctx discr ^^ string " with" ^^ cases
+      let cases = separate_map hardline (fun br -> doc_match_clause ctx br) brs in
+      string "match " ^^ doc_exp (effectful (effect_of discr)) ctx discr ^^ string " with" ^^ hardline ^^ cases
   | E_assign ((LE_aux (le_act, tannot) as le), e) -> (
       match le_act with
       | LE_id id | LE_typ (_, id) -> string "writeReg " ^^ doc_id_ctor id ^^ space ^^ doc_exp false ctx e

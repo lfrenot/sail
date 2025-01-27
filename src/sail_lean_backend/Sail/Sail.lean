@@ -38,6 +38,9 @@ def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef re
 
 end Regs
 
+/- TODO: Remove when #911 is merged -/
+abbrev SailM := StateM Unit
+
 namespace BitVec
 
 def length {w : Nat} (_ : BitVec w) : Nat := w
