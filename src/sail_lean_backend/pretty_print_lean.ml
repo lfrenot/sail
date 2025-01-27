@@ -162,6 +162,7 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   | Typ_id (Id_aux (Id id, _)) -> string id
   | Typ_app (Id_aux (Id "range", _), [A_aux (A_nexp low, _); A_aux (A_nexp high, _)]) ->
       if provably_nneg ctx low then string "Nat" else string "Int"
+  | Typ_exist (_, _, ty') -> doc_typ ctx ty'
   | _ -> failwith ("Type " ^ string_of_typ_con typ ^ " " ^ string_of_typ typ ^ " not translatable yet.")
 
 and doc_typ_app ctx (A_aux (t, _) as typ) =
@@ -381,8 +382,7 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       let fn_monadic = not (Effects.function_is_pure f ctx.global.effect_info) in
       nest 2 (wrap_with_pure (as_monadic && fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
   | E_vector vals ->
-      wrap_with_pure as_monadic (brackets (nest 2 (flow (comma ^^ break 1) (List.map d_of_arg vals))))
-      ^^ string ".toArray.toVector"
+      string "#v" ^^ wrap_with_pure as_monadic (brackets (nest 2 (flow (comma ^^ break 1) (List.map d_of_arg vals))))
   | E_typ (typ, e) ->
       if effectful (effect_of e) then
         parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
