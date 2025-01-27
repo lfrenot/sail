@@ -175,6 +175,7 @@ val bitvector_access = pure {
   interpreter: "access",
   lem: "access_vec_dec",
   coq: "access_vec_dec",
+  lean: "vectorAccess",
   _: "vector_access"
 } : forall ('n : Int) ('m : Int), 0 <= 'm < 'n . (bits('n), int('m)) -> bit
 $else
@@ -183,6 +184,7 @@ val bitvector_access = pure {
   interpreter: "access_inc",
   lem: "access_vec_inc",
   coq: "access_vec_inc",
+  lean: "vectorAccess",
   _: "vector_access_inc"
 } : forall ('n : Int) ('m : Int), 0 <= 'm < 'n . (bits('n), int('m)) -> bit
 $endif
@@ -192,6 +194,7 @@ val plain_vector_access = pure {
   interpreter: "access",
   lem: "access_list_dec",
   coq: "vec_access_dec",
+  lean: "vectorAccess",
   _: "vector_access"
 } : forall ('n : Int) ('m : Int) ('a : Type), 0 <= 'm < 'n. (vector('n, dec, 'a), int('m)) -> 'a
 
@@ -203,6 +206,7 @@ val bitvector_update = pure {
   interpreter: "update",
   lem: "update_vec_dec",
   coq: "update_vec_dec",
+  lean: "vectorAccess",
   _: "vector_update"
 } : forall 'n 'm, 0 <= 'm < 'n. (bits('n), int('m), bit) -> bits('n)
 $else

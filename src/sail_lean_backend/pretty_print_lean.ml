@@ -142,6 +142,9 @@ let provably_nneg ctx x = Type_check.prove __POS__ ctx.env (nc_gteq x (nint 0))
 
 let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   match t with
+  | Typ_app (Id_aux (Id "vector", _), [A_aux (A_nexp m, _); A_aux (A_typ elem_typ, _)]) ->
+      (* TODO: remove duplication with exists, below *)
+      string "Vector" ^^ space ^^ parens (doc_typ ctx elem_typ) ^^ space ^^ doc_nexp ctx m
   | Typ_id (Id_aux (Id "unit", _)) -> string "Unit"
   | Typ_id (Id_aux (Id "int", _)) -> string "Int"
   | Typ_id (Id_aux (Id "bool", _)) -> string "Bool"
@@ -377,7 +380,9 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       let d_args = List.map d_of_arg args in
       let fn_monadic = not (Effects.function_is_pure f ctx.global.effect_info) in
       nest 2 (wrap_with_pure (as_monadic && fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
-  | E_vector vals -> failwith "vector found"
+  | E_vector vals ->
+      let vals = List.map (doc_exp false ctx) vals in
+      brackets (nest 2 (flow (comma ^^ break 1) vals)) ^^ string ".toArray.toVector"
   | E_typ (typ, e) ->
       if effectful (effect_of e) then
         parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
@@ -413,10 +418,29 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       | LE_deref e' -> string "writeRegRef " ^^ doc_exp false ctx e' ^^ space ^^ doc_exp false ctx e
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
+  | E_if (c, t, e) -> if_exp ctx (env_of full_exp) (typ_of full_exp) false as_monadic c t e
+  | E_ref id -> string "Reg " ^^ doc_id_ctor id
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) =
   doc_id_ctor field ^^ string " := " ^^ wrap_with_left_arrow with_arrow (doc_exp false ctx e)
+
+and if_exp (ctxt : context) (full_env : env) (full_typ : typ) (elseif : bool) (as_monadic : bool) c t e =
+  let if_pp = string (if elseif then "else if" else "if") in
+  let c_pp = doc_exp as_monadic ctxt c in
+  let t_pp = doc_exp as_monadic ctxt t in
+  let else_pp =
+    match e with
+    | E_aux (E_if (c', t', e'), _) | E_aux (E_typ (_, E_aux (E_if (c', t', e'), _)), _) ->
+        if_exp ctxt full_env full_typ true as_monadic c' t' e'
+    (* Special case to prevent current arm decoder becoming a staircase *)
+    (* TODO: replace with smarter pretty printing *)
+    | E_aux (E_internal_plet (pat, exp1, E_aux (E_typ (typ, (E_aux (E_if (_, _, _), _) as exp2)), _)), ann)
+      when Typ.compare typ unit_typ == 0 ->
+        string "else" ^/^ doc_exp as_monadic ctxt (E_aux (E_internal_plet (pat, exp1, exp2), ann))
+    | _ -> prefix 2 1 (string "else") (doc_exp as_monadic ctxt e)
+  in
+  prefix 2 1 (soft_surround 2 1 if_pp c_pp (string "then")) t_pp ^^ break 1 ^^ else_pp
 
 let doc_binder ctx i t =
   let paranthesizer =
@@ -523,16 +547,41 @@ let doc_typdef ctx (TD_aux (td, tannot) as full_typdef) =
       nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
-let rec doc_defs_aux ctx defs types fundefs =
-  match defs with
-  | [] -> (types, fundefs)
-  | DEF_aux (DEF_fundef fdef, _) :: defs' ->
-      doc_defs_aux ctx defs' types (fundefs ^^ group (doc_fundef ctx fdef) ^/^ hardline)
-  | DEF_aux (DEF_type tdef, _) :: defs' ->
-      doc_defs_aux ctx defs' (types ^^ group (doc_typdef ctx tdef) ^/^ hardline) fundefs
-  | _ :: defs' -> doc_defs_aux ctx defs' types fundefs
+let doc_val ctx pat exp =
+  let id, pat_typ =
+    match pat with
+    | P_aux (P_typ (typ, P_aux (P_id id, _)), _) -> (id, Some typ)
+    | P_aux (P_id id, _) -> (id, None)
+    | P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_var kid, _)), _) when Id.compare id (id_of_kid kid) == 0 -> (id, None)
+    | P_aux (P_typ (typ, P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_var kid, _)), _)), _)
+      when Id.compare id (id_of_kid kid) == 0 ->
+        (id, Some typ)
+    | P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_app (app_id, [TP_aux (TP_var kid, _)]), _)), _)
+      when Id.compare app_id (mk_id "atom") == 0 && Id.compare id (id_of_kid kid) == 0 ->
+        (id, None)
+    | P_aux
+        (P_typ (typ, P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_app (app_id, [TP_aux (TP_var kid, _)]), _)), _)), _)
+      when Id.compare app_id (mk_id "atom") == 0 && Id.compare id (id_of_kid kid) == 0 ->
+        (id, Some typ)
+    | _ -> failwith ("Pattern " ^ string_of_pat_con pat ^ " " ^ string_of_pat pat ^ " not translatable yet.")
+  in
+  let typpp = match pat_typ with None -> empty | Some typ -> space ^^ colon ^^ space ^^ doc_typ ctx typ in
+  let idpp = doc_id_ctor id in
+  let base_pp = doc_exp false ctx exp in
+  group (string "def" ^^ space ^^ idpp ^^ typpp ^^ space ^^ coloneq ^/^ base_pp)
 
-let doc_defs ctx defs = doc_defs_aux ctx defs empty empty
+let rec doc_defs_rec ctx defs types docdefs =
+  match defs with
+  | [] -> (types, docdefs)
+  | DEF_aux (DEF_fundef fdef, _) :: defs' ->
+      doc_defs_rec ctx defs' types (docdefs ^^ group (doc_fundef ctx fdef) ^/^ hardline)
+  | DEF_aux (DEF_type tdef, _) :: defs' ->
+      doc_defs_rec ctx defs' (types ^^ group (doc_typdef ctx tdef) ^/^ hardline) docdefs
+  | DEF_aux (DEF_let (LB_aux (LB_val (pat, exp), _)), _) :: defs' ->
+      doc_defs_rec ctx defs' types (docdefs ^^ group (doc_val ctx pat exp) ^/^ hardline)
+  | _ :: defs' -> doc_defs_rec ctx defs' types docdefs
+
+let doc_defs ctx defs = doc_defs_rec ctx defs empty empty
 
 (* Remove all imports for now, they will be printed in other files. Probably just for testing. *)
 let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.env) def list) depth =
@@ -542,15 +591,9 @@ let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.en
   | DEF_aux (DEF_pragma ("include_end", _, _), _) :: ds -> remove_imports ds (depth - 1)
   | d :: ds -> if depth > 0 then remove_imports ds depth else d :: remove_imports ds depth
 
-let opt_cons v = function None -> Some [v] | Some t -> Some (v :: t)
-
-let reg_type_name typ_id = prepend_id "register_" typ_id
-let reg_case_name typ_id = prepend_id "R_" typ_id
-let state_field_name typ_id = append_id typ_id "_s"
-let ref_name reg = append_id reg "_ref"
-let add_reg_typ env (typ_map, regs_map) (typ, id, has_init) =
+let add_reg_typ typ_map (typ, id, _) =
   let typ_id = State.id_of_regtyp IdSet.empty typ in
-  (Bindings.add typ_id typ typ_map, Bindings.update typ_id (opt_cons id) regs_map)
+  Bindings.add typ_id (id, typ) typ_map
 
 let register_enums registers =
   separate hardline
@@ -572,13 +615,28 @@ let type_enum ctx registers =
       empty;
     ]
 
+let inhabit_enum ctx typ_map =
+  separate_map hardline
+    (fun (_, (id, typ)) ->
+      string "instance : Inhabited (RegisterRef RegisterType "
+      ^^ doc_typ ctx typ ^^ string ") where" ^^ hardline ^^ string "  default := .Reg " ^^ doc_id_ctor id
+    )
+    typ_map
+
 let doc_reg_info env registers =
-  let bare_ctx = initial_context env in
+  let ctx = initial_context env in
+
+  let type_map = List.fold_left add_reg_typ Bindings.empty registers in
+  let type_map = Bindings.bindings type_map in
+
   separate hardline
     [
       register_enums registers;
-      type_enum bare_ctx registers;
+      type_enum ctx registers;
       string "abbrev SailM := PreSailM RegisterType";
+      empty;
+      string "open RegisterRef";
+      inhabit_enum ctx type_map;
       empty;
       empty;
     ]

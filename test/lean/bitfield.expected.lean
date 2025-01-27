@@ -14,6 +14,10 @@ abbrev RegisterType : Register → Type
 
 abbrev SailM := PreSailM RegisterType
 
+open RegisterRef
+instance : Inhabited (RegisterRef RegisterType (BitVec 8)) where
+  default := .Reg R
+
 def undefined_cr_type (lit : Unit) : SailM (BitVec 8) := do
   sorry
 
