@@ -145,7 +145,7 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   match t with
   | Typ_id (Id_aux (Id "unit", _)) -> string "Unit"
   | Typ_id (Id_aux (Id "int", _)) -> string "Int"
-  | Typ_id (Id_aux (Id "bool", _)) -> string "Bool"
+  | Typ_app (Id_aux (Id "atom_bool", _), _) | Typ_id (Id_aux (Id "bool", _)) -> string "Bool"
   | Typ_id (Id_aux (Id "bit", _)) -> parens (string "BitVec 1")
   | Typ_id (Id_aux (Id "nat", _)) -> string "Nat"
   | Typ_app (Id_aux (Id "bitvector", _), [A_aux (A_nexp m, _)]) | Typ_app (Id_aux (Id "bits", _), [A_aux (A_nexp m, _)])
@@ -161,6 +161,7 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   | Typ_id (Id_aux (Id id, _)) -> string id
   | Typ_app (Id_aux (Id "range", _), [A_aux (A_nexp low, _); A_aux (A_nexp high, _)]) ->
       if provably_nneg ctx low then string "Nat" else string "Int"
+  | Typ_var kid -> doc_kid ctx kid
   | _ -> failwith ("Type " ^ string_of_typ_con typ ^ " " ^ string_of_typ typ ^ " not translatable yet.")
 
 and doc_typ_app ctx (A_aux (t, _) as typ) =
@@ -178,11 +179,7 @@ let rec captured_typ_var ((i, Typ_aux (t, _)) as typ) =
 
 let doc_typ_id ctx (typ, fid) = flow (break 1) [doc_id_ctor fid; colon; doc_typ ctx typ]
 
-let doc_kind (K_aux (k, _)) =
-  match k with
-  | K_int -> string "Int"
-  | K_bool -> string "Bool"
-  | _ -> failwith ("Kind " ^ string_of_kind_aux k ^ " not translatable yet.")
+let doc_kind (K_aux (k, _)) = match k with K_int -> string "Int" | K_bool -> string "Bool" | K_type -> string "Type"
 
 let doc_typ_arg ctx ta = string "foo" (* TODO implement *)
 
