@@ -534,6 +534,7 @@ let doc_typdef ctx (TD_aux (td, tannot) as full_typdef) =
       nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
+(* Copied from the Coq PP *)
 let doc_val ctx pat exp =
   let id, pat_typ =
     match pat with
@@ -555,7 +556,7 @@ let doc_val ctx pat exp =
   let typpp = match pat_typ with None -> empty | Some typ -> space ^^ colon ^^ space ^^ doc_typ ctx typ in
   let idpp = doc_id_ctor id in
   let base_pp = doc_exp false ctx exp in
-  group (string "def" ^^ space ^^ idpp ^^ typpp ^^ space ^^ coloneq ^/^ base_pp)
+  nest 2 (group ((string "def" ^^ space ^^ idpp ^^ typpp ^^ space ^^ coloneq ^/^ base_pp)))
 
 let rec doc_defs_rec ctx defs types docdefs =
   match defs with
