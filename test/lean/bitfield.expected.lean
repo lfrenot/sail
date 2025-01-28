@@ -2,7 +2,7 @@ import Out.Sail.Sail
 
 open Sail
 
-def cr_type := (BitVec 8)
+abbrev cr_type := (BitVec 8)
 
 inductive Register : Type where
   | R

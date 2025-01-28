@@ -2,11 +2,11 @@ import Out.Sail.Sail
 
 open Sail
 
-def xlen : Int := 64
+abbrev xlen : Int := 64
 
-def xlen_bytes : Int := 8
+abbrev xlen_bytes : Int := 8
 
-def xlenbits := (BitVec 64)
+abbrev xlenbits := (BitVec 64)
 
 /-- Type quantifiers: k_n : Int, m : Int, m ≥ k_n -/
 def EXTZ {m : _} (v : (BitVec k_n)) : (BitVec m) :=

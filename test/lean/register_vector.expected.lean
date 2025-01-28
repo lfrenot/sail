@@ -2,7 +2,7 @@ import Out.Sail.Sail
 
 open Sail
 
-def reg_index := Nat
+abbrev reg_index := Nat
 
 inductive Register : Type where
   | R0
@@ -41,7 +41,7 @@ inductive Register : Type where
 open Register
 
 abbrev RegisterType : Register → Type
-  | .R0 => (BitVec 64)Reg
+  | .R0 => (BitVec 64)
   | .R1 => (BitVec 64)
   | .R2 => (BitVec 64)
   | .R3 => (BitVec 64)

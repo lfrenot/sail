@@ -529,9 +529,9 @@ let doc_typdef ctx (TD_aux (td, tannot) as full_typdef) =
       (* TODO don't ignore type quantifiers *)
       nest 2 (flow (break 1) [string "structure"; string id; string "where"] ^^ hardline ^^ enums_doc)
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_typ t, _)) ->
-      nest 2 (flow (break 1) [string "def"; string id; coloneq; doc_typ ctx t])
+      nest 2 (flow (break 1) [string "abbrev"; string id; coloneq; doc_typ ctx t])
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_nexp ne, _)) ->
-      nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
+      nest 2 (flow (break 1) [string "abbrev"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
 (* Copied from the Coq PP *)
