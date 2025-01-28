@@ -420,9 +420,11 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
     )
   | E_if (i, t, e) ->
       let statements_monadic = as_monadic || effectful (effect_of t) || effectful (effect_of e) in
-      nest 2 (string "if" ^^ space ^^ nest 1 (doc_exp false ctx i)) ^^ hardline ^^
-      nest 2 (string "then" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx t)) ^^ hardline ^^
-      nest 2 (string "else" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx e))
+      nest 2 (string "if" ^^ space ^^ nest 1 (doc_exp false ctx i))
+      ^^ hardline
+      ^^ nest 2 (string "then" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx t))
+      ^^ hardline
+      ^^ nest 2 (string "else" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx e))
   | E_ref id -> string "Reg " ^^ doc_id_ctor id
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
@@ -556,7 +558,7 @@ let doc_val ctx pat exp =
   let typpp = match pat_typ with None -> empty | Some typ -> space ^^ colon ^^ space ^^ doc_typ ctx typ in
   let idpp = doc_id_ctor id in
   let base_pp = doc_exp false ctx exp in
-  nest 2 (group ((string "def" ^^ space ^^ idpp ^^ typpp ^^ space ^^ coloneq ^/^ base_pp)))
+  nest 2 (group (string "def" ^^ space ^^ idpp ^^ typpp ^^ space ^^ coloneq ^/^ base_pp))
 
 let rec doc_defs_rec ctx defs types docdefs =
   match defs with
