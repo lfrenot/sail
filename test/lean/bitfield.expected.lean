@@ -2,7 +2,7 @@ import Out.Sail.Sail
 
 open Sail
 
-def cr_type := (BitVec 8)
+abbrev cr_type := (BitVec 8)
 
 inductive Register : Type where
   | R
@@ -13,6 +13,10 @@ abbrev RegisterType : Register → Type
   | .R => (BitVec 8)
 
 abbrev SailM := PreSailM RegisterType
+
+open RegisterRef
+instance : Inhabited (RegisterRef RegisterType (BitVec 8)) where
+  default := .Reg R
 
 def undefined_cr_type (lit : Unit) : SailM (BitVec 8) := do
   sorry

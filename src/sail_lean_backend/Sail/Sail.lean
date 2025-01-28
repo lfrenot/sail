@@ -36,6 +36,8 @@ def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) :
 
 def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef reg_ref
 
+def vectorAccess [Inhabited α] (v : Vector α m) (n : Nat) := v[n]!
+
 end Regs
 
 /- TODO: Remove when #911 is merged -/

@@ -143,6 +143,9 @@ let provably_nneg ctx x = Type_check.prove __POS__ ctx.env (nc_gteq x (nint 0))
 
 let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   match t with
+  | Typ_app (Id_aux (Id "vector", _), [A_aux (A_nexp m, _); A_aux (A_typ elem_typ, _)]) ->
+      (* TODO: remove duplication with exists, below *)
+      string "Vector" ^^ space ^^ parens (doc_typ ctx elem_typ) ^^ space ^^ doc_nexp ctx m
   | Typ_id (Id_aux (Id "unit", _)) -> string "Unit"
   | Typ_id (Id_aux (Id "int", _)) -> string "Int"
   | Typ_app (Id_aux (Id "atom_bool", _), _) | Typ_id (Id_aux (Id "bool", _)) -> string "Bool"
@@ -352,9 +355,10 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
     let field_monadic = effectful (effect_of e) in
     doc_fexp field_monadic ctx fexp
   in
+  (* string (" /- " ^ string_of_exp_con full_exp ^ " -/ ") ^^ *)
   match e with
   | E_id id ->
-      if Env.is_register id env then string "readReg " ^^ doc_id_ctor id
+      if Env.is_register id env then wrap_with_left_arrow (not as_monadic) (string "readReg " ^^ doc_id_ctor id)
       else wrap_with_pure as_monadic (string (string_of_id id))
   | E_lit l -> wrap_with_pure as_monadic (doc_lit l)
   | E_app (Id_aux (Id "undefined_int", _), _) (* TODO remove when we handle imports *)
@@ -369,7 +373,7 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       let e0 = doc_pat pat in
       let e1_pp = doc_exp false ctx e1 in
       let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
-      let e2_pp = doc_exp false ctx e2' in
+      let e2_pp = doc_exp as_monadic ctx e2' in
       let e0_pp =
         begin
           match pat with
@@ -386,7 +390,8 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       let d_args = List.map d_of_arg args in
       let fn_monadic = not (Effects.function_is_pure f ctx.global.effect_info) in
       nest 2 (wrap_with_pure (as_monadic && fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
-  | E_vector vals -> failwith "vector found"
+  | E_vector vals ->
+      string "#v" ^^ wrap_with_pure as_monadic (brackets (nest 2 (flow (comma ^^ break 1) (List.map d_of_arg vals))))
   | E_typ (typ, e) ->
       if effectful (effect_of e) then
         parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
@@ -425,6 +430,14 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       | LE_deref e' -> string "writeRegRef " ^^ doc_exp false ctx e' ^^ space ^^ doc_exp false ctx e
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
+  | E_if (i, t, e) ->
+      let statements_monadic = as_monadic || effectful (effect_of t) || effectful (effect_of e) in
+      nest 2 (string "if" ^^ space ^^ nest 1 (doc_exp false ctx i))
+      ^^ hardline
+      ^^ nest 2 (string "then" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx t))
+      ^^ hardline
+      ^^ nest 2 (string "else" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx e))
+  | E_ref id -> string "Reg " ^^ doc_id_ctor id
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) =
@@ -538,21 +551,47 @@ let doc_typdef ctx (TD_aux (td, tannot) as full_typdef) =
       (* TODO don't ignore type quantifiers *)
       nest 2 (flow (break 1) [string "structure"; string id; string "where"] ^^ hardline ^^ enums_doc)
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_typ t, _)) ->
-      nest 2 (flow (break 1) [string "def"; string id; coloneq; doc_typ ctx t])
+      nest 2 (flow (break 1) [string "abbrev"; string id; coloneq; doc_typ ctx t])
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_nexp ne, _)) ->
-      nest 2 (flow (break 1) [string "def"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
+      nest 2 (flow (break 1) [string "abbrev"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
-let rec doc_defs_aux ctx defs types fundefs =
-  match defs with
-  | [] -> (types, fundefs)
-  | DEF_aux (DEF_fundef fdef, _) :: defs' ->
-      doc_defs_aux ctx defs' types (fundefs ^^ group (doc_fundef ctx fdef) ^/^ hardline)
-  | DEF_aux (DEF_type tdef, _) :: defs' ->
-      doc_defs_aux ctx defs' (types ^^ group (doc_typdef ctx tdef) ^/^ hardline) fundefs
-  | _ :: defs' -> doc_defs_aux ctx defs' types fundefs
+(* Copied from the Coq PP *)
+let doc_val ctx pat exp =
+  let id, pat_typ =
+    match pat with
+    | P_aux (P_typ (typ, P_aux (P_id id, _)), _) -> (id, Some typ)
+    | P_aux (P_id id, _) -> (id, None)
+    | P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_var kid, _)), _) when Id.compare id (id_of_kid kid) == 0 -> (id, None)
+    | P_aux (P_typ (typ, P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_var kid, _)), _)), _)
+      when Id.compare id (id_of_kid kid) == 0 ->
+        (id, Some typ)
+    | P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_app (app_id, [TP_aux (TP_var kid, _)]), _)), _)
+      when Id.compare app_id (mk_id "atom") == 0 && Id.compare id (id_of_kid kid) == 0 ->
+        (id, None)
+    | P_aux
+        (P_typ (typ, P_aux (P_var (P_aux (P_id id, _), TP_aux (TP_app (app_id, [TP_aux (TP_var kid, _)]), _)), _)), _)
+      when Id.compare app_id (mk_id "atom") == 0 && Id.compare id (id_of_kid kid) == 0 ->
+        (id, Some typ)
+    | _ -> failwith ("Pattern " ^ string_of_pat_con pat ^ " " ^ string_of_pat pat ^ " not translatable yet.")
+  in
+  let typpp = match pat_typ with None -> empty | Some typ -> space ^^ colon ^^ space ^^ doc_typ ctx typ in
+  let idpp = doc_id_ctor id in
+  let base_pp = doc_exp false ctx exp in
+  nest 2 (group (string "def" ^^ space ^^ idpp ^^ typpp ^^ space ^^ coloneq ^/^ base_pp))
 
-let doc_defs ctx defs = doc_defs_aux ctx defs empty empty
+let rec doc_defs_rec ctx defs types docdefs =
+  match defs with
+  | [] -> (types, docdefs)
+  | DEF_aux (DEF_fundef fdef, _) :: defs' ->
+      doc_defs_rec ctx defs' types (docdefs ^^ group (doc_fundef ctx fdef) ^/^ hardline)
+  | DEF_aux (DEF_type tdef, _) :: defs' ->
+      doc_defs_rec ctx defs' (types ^^ group (doc_typdef ctx tdef) ^/^ hardline) docdefs
+  | DEF_aux (DEF_let (LB_aux (LB_val (pat, exp), _)), _) :: defs' ->
+      doc_defs_rec ctx defs' types (docdefs ^^ group (doc_val ctx pat exp) ^/^ hardline)
+  | _ :: defs' -> doc_defs_rec ctx defs' types docdefs
+
+let doc_defs ctx defs = doc_defs_rec ctx defs empty empty
 
 (* Remove all imports for now, they will be printed in other files. Probably just for testing. *)
 let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.env) def list) depth =
@@ -562,15 +601,9 @@ let rec remove_imports (defs : (Libsail.Type_check.tannot, Libsail.Type_check.en
   | DEF_aux (DEF_pragma ("include_end", _, _), _) :: ds -> remove_imports ds (depth - 1)
   | d :: ds -> if depth > 0 then remove_imports ds depth else d :: remove_imports ds depth
 
-let opt_cons v = function None -> Some [v] | Some t -> Some (v :: t)
-
-let reg_type_name typ_id = prepend_id "register_" typ_id
-let reg_case_name typ_id = prepend_id "R_" typ_id
-let state_field_name typ_id = append_id typ_id "_s"
-let ref_name reg = append_id reg "_ref"
-let add_reg_typ env (typ_map, regs_map) (typ, id, has_init) =
+let add_reg_typ typ_map (typ, id, _) =
   let typ_id = State.id_of_regtyp IdSet.empty typ in
-  (Bindings.add typ_id typ typ_map, Bindings.update typ_id (opt_cons id) regs_map)
+  Bindings.add typ_id (id, typ) typ_map
 
 let register_enums registers =
   separate hardline
@@ -592,13 +625,28 @@ let type_enum ctx registers =
       empty;
     ]
 
+let inhabit_enum ctx typ_map =
+  separate_map hardline
+    (fun (_, (id, typ)) ->
+      string "instance : Inhabited (RegisterRef RegisterType "
+      ^^ doc_typ ctx typ ^^ string ") where" ^^ hardline ^^ string "  default := .Reg " ^^ doc_id_ctor id
+    )
+    typ_map
+
 let doc_reg_info env registers =
-  let bare_ctx = initial_context env in
+  let ctx = initial_context env in
+
+  let type_map = List.fold_left add_reg_typ Bindings.empty registers in
+  let type_map = Bindings.bindings type_map in
+
   separate hardline
     [
       register_enums registers;
-      type_enum bare_ctx registers;
+      type_enum ctx registers;
       string "abbrev SailM := PreSailM RegisterType";
+      empty;
+      string "open RegisterRef";
+      inhabit_enum ctx type_map;
       empty;
       empty;
     ]
