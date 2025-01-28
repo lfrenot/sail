@@ -346,9 +346,10 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
     let field_monadic = effectful (effect_of e) in
     doc_fexp field_monadic ctx fexp
   in
+  (* string (" /- " ^ string_of_exp_con full_exp ^ " -/ ") ^^ *)
   match e with
   | E_id id ->
-      if Env.is_register id env then string "readReg " ^^ doc_id_ctor id
+      if Env.is_register id env then wrap_with_left_arrow (not as_monadic) (string "readReg " ^^ doc_id_ctor id)
       else wrap_with_pure as_monadic (string (string_of_id id))
   | E_lit l -> wrap_with_pure as_monadic (doc_lit l)
   | E_app (Id_aux (Id "undefined_int", _), _) (* TODO remove when we handle imports *)
@@ -363,7 +364,7 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       let e0 = doc_pat ctx false pat in
       let e1_pp = doc_exp false ctx e1 in
       let e2' = rebind_cast_pattern_vars pat (typ_of e1) e2 in
-      let e2_pp = doc_exp false ctx e2' in
+      let e2_pp = doc_exp as_monadic ctx e2' in
       let e0_pp =
         begin
           match pat with
@@ -417,29 +418,16 @@ let rec doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       | LE_deref e' -> string "writeRegRef " ^^ doc_exp false ctx e' ^^ space ^^ doc_exp false ctx e
       | _ -> failwith ("assign " ^ string_of_lexp le ^ "not implemented yet")
     )
-  | E_if (c, t, e) -> if_exp ctx (env_of full_exp) (typ_of full_exp) false as_monadic c t e
+  | E_if (i, t, e) ->
+      let statements_monadic = as_monadic || effectful (effect_of t) || effectful (effect_of e) in
+      nest 2 (string "if" ^^ space ^^ nest 1 (doc_exp false ctx i)) ^^ hardline ^^
+      nest 2 (string "then" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx t)) ^^ hardline ^^
+      nest 2 (string "else" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx e))
   | E_ref id -> string "Reg " ^^ doc_id_ctor id
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) =
   doc_id_ctor field ^^ string " := " ^^ wrap_with_left_arrow with_arrow (doc_exp false ctx e)
-
-and if_exp (ctxt : context) (full_env : env) (full_typ : typ) (elseif : bool) (as_monadic : bool) c t e =
-  let if_pp = string (if elseif then "else if" else "if") in
-  let c_pp = doc_exp as_monadic ctxt c in
-  let t_pp = doc_exp as_monadic ctxt t in
-  let else_pp =
-    match e with
-    | E_aux (E_if (c', t', e'), _) | E_aux (E_typ (_, E_aux (E_if (c', t', e'), _)), _) ->
-        if_exp ctxt full_env full_typ true as_monadic c' t' e'
-    (* Special case to prevent current arm decoder becoming a staircase *)
-    (* TODO: replace with smarter pretty printing *)
-    | E_aux (E_internal_plet (pat, exp1, E_aux (E_typ (typ, (E_aux (E_if (_, _, _), _) as exp2)), _)), ann)
-      when Typ.compare typ unit_typ == 0 ->
-        string "else" ^/^ doc_exp as_monadic ctxt (E_aux (E_internal_plet (pat, exp1, exp2), ann))
-    | _ -> prefix 2 1 (string "else") (doc_exp as_monadic ctxt e)
-  in
-  prefix 2 1 (soft_surround 2 1 if_pp c_pp (string "then")) t_pp ^^ break 1 ^^ else_pp
 
 let doc_binder ctx i t =
   let paranthesizer =

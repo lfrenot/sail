@@ -87,12 +87,14 @@ def GPRs : Vector (RegisterRef RegisterType (BitVec 64)) 31 :=
 
 /-- Type quantifiers: n : Int, 0 ≤ n ∧ n ≤ 31 -/
 def wX (n : Nat) (value : (BitVec 64)) : SailM Unit := do
-  if (Ne n 31) then writeRegRef (vectorAccess GPRs n) value
+  if (Ne n 31)
+  then writeRegRef (vectorAccess GPRs n) value
   else (pure ())
 
 /-- Type quantifiers: n : Int, 0 ≤ n ∧ n ≤ 31 -/
 def rX (n : Nat) : SailM (BitVec 64) := do
-  if (Ne n 31) then (reg_deref (vectorAccess GPRs n))
+  if (Ne n 31)
+  then (reg_deref (vectorAccess GPRs n))
   else (pure (0x0000000000000000 : (BitVec 64)))
 
 def rPC : SailM (BitVec 64) := do
@@ -100,6 +102,14 @@ def rPC : SailM (BitVec 64) := do
 
 def wPC (pc : (BitVec 64)) : SailM Unit := do
   writeReg _PC pc
+
+/-- Type quantifiers: r : Int, 0 ≤ r ∧ r ≤ 31 -/
+def monad_test (r : Nat) : SailM (BitVec 1) := do
+  if (Eq (← (rX r)) (0x0000000000000000 : (BitVec 64)))
+  then (pure 1#1)
+  else if (Eq (← (rX r)) (0x0000000000000001 : (BitVec 64)))
+       then (pure 1#1)
+       else (pure 0#1)
 
 def initialize_registers : SailM Unit := do
   writeReg _PC sorry

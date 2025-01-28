@@ -96,3 +96,12 @@ function rPC() -> bits(64) = _PC
 function wPC(pc : bits(64)) -> unit = _PC = pc
 
 overload PC = {rPC, wPC}
+
+function monad_test(r : reg_index) -> bit = {
+  if X(r) == 0x0000000000000000 then
+    bitone
+  else if X(r) == 0x0000000000000001 then
+    bitone
+  else
+    bitzero
+}
