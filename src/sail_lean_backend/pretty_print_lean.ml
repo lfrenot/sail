@@ -21,13 +21,7 @@ type context = {
   kid_id_renames_rev : kid Bindings.t;  (** Inverse of the [kid_id_renames] mapping. *)
 }
 
-let initial_context env =
-  {
-    global = { effect_info = Effects.empty_side_effect_info };
-    env;
-    kid_id_renames = KBindings.empty;
-    kid_id_renames_rev = Bindings.empty;
-  }
+let initial_context env global = { global; env; kid_id_renames = KBindings.empty; kid_id_renames_rev = Bindings.empty }
 
 let add_single_kid_id_rename ctx id kid =
   let kir =
@@ -379,7 +373,7 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
         begin
           match pat with
           | P_aux (P_typ (_, P_aux (P_wild, _)), _) -> string ""
-          | _ -> flow (break 1) [string "let"; e0; string "←"] ^^ space
+          | _ -> flow (break 1) [string "let"; e0; string ":="] ^^ space
         end
       in
       nest 2 (e0_pp ^^ e1_pp) ^^ hardline ^^ e2_pp
@@ -390,12 +384,15 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       in
       let d_args = List.map d_of_arg args in
       let fn_monadic = not (Effects.function_is_pure f ctx.global.effect_info) in
-      nest 2 (wrap_with_pure (as_monadic && fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
+      nest 2
+        (wrap_with_left_arrow ((not as_monadic) && fn_monadic)
+           (wrap_with_pure (as_monadic && not fn_monadic) (parens (flow (break 1) (d_id :: d_args))))
+        )
   | E_vector vals ->
       string "#v" ^^ wrap_with_pure as_monadic (brackets (nest 2 (flow (comma ^^ break 1) (List.map d_of_arg vals))))
   | E_typ (typ, e) ->
       if effectful (effect_of e) then
-        parens (separate space [doc_exp false ctx e; colon; string "SailM"; doc_typ ctx typ])
+        parens (separate space [doc_exp as_monadic ctx e; colon; string "SailM"; doc_typ ctx typ])
       else wrap_with_pure as_monadic (parens (separate space [doc_exp false ctx e; colon; doc_typ ctx typ]))
   | E_tuple es -> wrap_with_pure as_monadic (parens (separate_map (comma ^^ space) d_of_arg es))
   | E_let (LB_aux (LB_val (lpat, lexp), _), e) ->
@@ -455,7 +452,7 @@ let doc_binder ctx i t =
   let ctx = match captured_typ_var (i, t) with Some (i, ki) -> add_single_kid_id_rename ctx i ki | _ -> ctx in
   (ctx, separate space [string (string_of_id i); colon; doc_typ ctx t] |> paranthesizer)
 
-let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
+let doc_funcl_init global (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let env = env_of_tannot (snd annot) in
   let TypQ_aux (tq, l), typ = Env.get_val_spec_orig id env in
   let arg_typs, ret_typ, _ =
@@ -474,7 +471,7 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
            | _ -> failwith "Argument pattern not translatable yet."
        )
   in
-  let ctx = initial_context env in
+  let ctx = initial_context env global in
   let ctx, binders =
     List.fold_left
       (fun (ctx, bs) (i, t) ->
@@ -503,7 +500,7 @@ let doc_funcl_init (FCL_aux (FCL_funcl (id, pexp), annot)) =
     fixup_binders
   )
 
-let doc_funcl_body fixup_binders (FCL_aux (FCL_funcl (id, pexp), annot)) =
+let doc_funcl_body fixup_binders global (FCL_aux (FCL_funcl (id, pexp), annot)) =
   let env = env_of_tannot (snd annot) in
   let ctx = initial_context env in
   let _, _, exp, _ = destruct_pexp pexp in
@@ -511,11 +508,11 @@ let doc_funcl_body fixup_binders (FCL_aux (FCL_funcl (id, pexp), annot)) =
      this adds a let binding at the beginning of the function, of the form [let x := (arg0, arg1)] *)
   let exp = fixup_binders exp in
   let is_monadic = effectful (effect_of exp) in
-  doc_exp is_monadic (initial_context env) exp
+  doc_exp is_monadic (initial_context env global) exp
 
 let doc_funcl ctx funcl =
-  let comment, signature, env, fixup_binders = doc_funcl_init funcl in
-  comment ^^ nest 2 (signature ^^ hardline ^^ doc_funcl_body fixup_binders funcl)
+  let comment, signature, env, fixup_binders = doc_funcl_init ctx.global funcl in
+  comment ^^ nest 2 (signature ^^ hardline ^^ doc_funcl_body fixup_binders ctx.global funcl)
 
 let doc_fundef ctx (FD_aux (FD_function (r, typa, fcls), fannot)) =
   match fcls with
@@ -642,8 +639,8 @@ let inhabit_enum ctx typ_map =
     )
     typ_map
 
-let doc_reg_info env registers =
-  let ctx = initial_context env in
+let doc_reg_info env global registers =
+  let ctx = initial_context env global in
 
   let type_map = List.fold_left add_reg_typ Bindings.empty registers in
   let type_map = Bindings.bindings type_map in
@@ -660,10 +657,11 @@ let doc_reg_info env registers =
       empty;
     ]
 
-let pp_ast_lean (env : Type_check.env) ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
+let pp_ast_lean (env : Type_check.env) effect_info ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
-  let register_refs = match regs with [] -> empty | _ -> doc_reg_info env regs in
-  let types, fundefs = doc_defs (initial_context env) defs in
+  let global = { effect_info } in
+  let register_refs = match regs with [] -> empty | _ -> doc_reg_info env global regs in
+  let types, fundefs = doc_defs (initial_context env global) defs in
   print o (types ^^ register_refs ^^ fundefs);
   ()

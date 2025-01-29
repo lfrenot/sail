@@ -6,6 +6,20 @@ structure My_struct where
   field1 : Int
   field2 : (BitVec 1)
 
+inductive Register : Type where
+  | r
+  deriving DecidableEq, Hashable
+open Register
+
+abbrev RegisterType : Register → Type
+  | .r => My_struct
+
+abbrev SailM := PreSailM RegisterType
+
+open RegisterRef
+instance : Inhabited (RegisterRef RegisterType My_struct) where
+  default := .Reg r
+
 def undefined_My_struct (lit : Unit) : SailM My_struct := do
   (pure { field1 := (← sorry)
           field2 := (← sorry) })
@@ -28,6 +42,6 @@ def mk_struct (i : Int) (b : (BitVec 1)) : My_struct :=
 def undef_struct (x : (BitVec 1)) : SailM My_struct := do
   ((undefined_My_struct ()) : SailM My_struct)
 
-def initialize_registers : Unit :=
-  ()
+def initialize_registers : SailM Unit := do
+  writeReg r (← (undefined_My_struct ()))
 
