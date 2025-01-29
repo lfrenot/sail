@@ -165,6 +165,7 @@ let rec doc_typ ctx (Typ_aux (t, _) as typ) =
   | Typ_app (Id_aux (Id "range", _), [A_aux (A_nexp low, _); A_aux (A_nexp high, _)]) ->
       if provably_nneg ctx low then string "Nat" else string "Int"
   | Typ_var kid -> doc_kid ctx kid
+  | Typ_app (id, _) -> doc_id_ctor id
   | _ -> failwith ("Type " ^ string_of_typ_con typ ^ " " ^ string_of_typ typ ^ " not translatable yet.")
 
 and doc_typ_app ctx (A_aux (t, _) as typ) =
@@ -522,6 +523,9 @@ let doc_fundef ctx (FD_aux (FD_function (r, typa, fcls), fannot)) =
   | [funcl] -> doc_funcl ctx funcl
   | _ -> failwith "FD_function with more than one clause"
 
+let doc_type_union ctx (Tu_aux (Tu_ty_id (ty, i), _)) =
+  nest 2 (flow space [pipe; doc_id_ctor i; parens (flow space [underscore; colon; doc_typ ctx ty])])
+
 let string_of_type_def_con (TD_aux (td, _)) =
   match td with
   | TD_abbrev _ -> "TD_abbrev"
@@ -554,6 +558,11 @@ let doc_typdef ctx (TD_aux (td, tannot) as full_typdef) =
       nest 2 (flow (break 1) [string "abbrev"; string id; coloneq; doc_typ ctx t])
   | TD_abbrev (Id_aux (Id id, _), tq, A_aux (A_nexp ne, _)) ->
       nest 2 (flow (break 1) [string "abbrev"; string id; colon; string "Int"; coloneq; doc_nexp ctx ne])
+  | TD_variant (Id_aux (Id id, _), typq, ar, _) ->
+      let pp_tus = concat (List.map (fun tu -> hardline ^^ doc_type_union ctx tu) ar) in
+      nest 2 (nest 2 (flow space [string "inductive"; string id; string "where"]) ^^ pp_tus)
+      ^^ hardline ^^ hardline
+      ^^ flow space [string "open"; string id]
   | _ -> failwith ("Type definition " ^ string_of_type_def_con full_typdef ^ " not translatable yet.")
 
 (* Copied from the Coq PP *)
