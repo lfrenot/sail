@@ -40,9 +40,6 @@ def vectorAccess [Inhabited α] (v : Vector α m) (n : Nat) := v[n]!
 
 end Regs
 
-/- TODO: Remove when #911 is merged -/
-abbrev SailM := StateM Unit
-
 namespace BitVec
 
 def length {w : Nat} (_ : BitVec w) : Nat := w
