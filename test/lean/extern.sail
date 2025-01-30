@@ -7,7 +7,7 @@ function extern_add() -> int = {
 }
 
 function extern_sub() -> int = {
-  return sub_int(5, 4)
+  return sub_int(5, -4)
 }
 
 function extern_tdiv() -> int = {
@@ -23,11 +23,11 @@ function extern_tmod_positive() -> int = {
 }
 
 function extern_negate() -> int = {
-  return negate_int(5)
+  return negate_int(-5)
 }
 
 function extern_mult() -> int = {
-  return mult_int(5, 4)
+  return mult_int(5, -4)
 }
 
 function extern_and() -> bool = {

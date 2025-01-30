@@ -116,9 +116,11 @@ let string_of_nexp_con (Nexp_aux (n, l)) =
   | Nexp_neg _ -> "Nexp_neg"
   | Nexp_exp _ -> "Nexp_exp"
 
+let doc_big_int i = if i >= Z.zero then string (Big_int.to_string i) else parens (string (Big_int.to_string i))
+
 let doc_nexp ctx (Nexp_aux (n, l) as nexp) =
   match n with
-  | Nexp_constant i -> string (Big_int.to_string i)
+  | Nexp_constant i -> doc_big_int i
   | Nexp_var ki -> doc_kid ctx ki
   | _ -> failwith ("NExp " ^ string_of_nexp_con nexp ^ " " ^ string_of_nexp nexp ^ " not translatable yet.")
 
@@ -220,9 +222,7 @@ let doc_lit (L_aux (lit, l)) =
   | L_one -> string "1#1"
   | L_false -> string "false"
   | L_true -> string "true"
-  | L_num i ->
-      let s = Big_int.to_string i in
-      string s
+  | L_num i -> doc_big_int i
   | L_hex n -> utf8string ("0x" ^ n)
   | L_bin n -> utf8string ("0b" ^ n)
   | L_undef -> utf8string "(Fail \"undefined value of unsupported type\")"
