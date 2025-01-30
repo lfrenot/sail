@@ -88,7 +88,7 @@ let rec untuple_args_pat typs (P_aux (paux, ((l, _) as annot)) as pat) =
   let env = env_of_annot annot in
   let identity body = body in
   match (paux, typs) with
-  | P_tuple [], _ ->
+  | P_tuple [], _ | P_lit (L_aux (L_unit, _)), _ ->
       let annot = (l, mk_tannot Env.empty unit_typ) in
       ([(P_aux (P_lit (mk_lit L_unit), annot), unit_typ)], identity)
   (* The type checker currently has a special case for a single arg type; if
@@ -104,8 +104,6 @@ let rec untuple_args_pat typs (P_aux (paux, ((l, _) as annot)) as pat) =
       let argexp = E_aux (E_tuple argexps, annot) in
       let bindargs (E_aux (_, bannot) as body) = E_aux (E_let (LB_aux (LB_val (pat, argexp), annot), body), bannot) in
       (argpats, bindargs)
-  (* TODO Occurrences of the unit literal are removed right now, in order to be able to compile `initialize_registers`. *)
-  | P_lit (L_aux (L_unit, _)), _ -> ([], identity)
   | _, [typ] -> ([(pat, typ)], identity)
   | _, _ -> unreachable l __POS__ "Unexpected pattern/type combination"
 
@@ -445,8 +443,7 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
   | E_ref id -> string "Reg " ^^ doc_id_ctor id
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
-and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) =
-  doc_id_ctor field ^^ string " := " ^^ wrap_with_left_arrow with_arrow (doc_exp false ctx e)
+and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) = doc_id_ctor field ^^ string " := " ^^ doc_exp false ctx e
 
 let doc_binder ctx i t =
   let paranthesizer =
