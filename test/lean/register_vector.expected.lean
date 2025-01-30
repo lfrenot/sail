@@ -74,11 +74,10 @@ abbrev RegisterType : Register → Type
   | .R30 => (BitVec 64)
   | ._PC => (BitVec 64)
 
-abbrev SailM := PreSailM RegisterType
-
 open RegisterRef
 instance : Inhabited (RegisterRef RegisterType (BitVec 64)) where
   default := .Reg _PC
+abbrev SailM := PreSailM RegisterType
 
 def GPRs : Vector (RegisterRef RegisterType (BitVec 64)) 31 :=
   #v[Reg R30, Reg R29, Reg R28, Reg R27, Reg R26, Reg R25, Reg R24, Reg R23, Reg R22, Reg R21,

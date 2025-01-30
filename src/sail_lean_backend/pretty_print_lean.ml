@@ -641,27 +641,22 @@ let inhabit_enum ctx typ_map =
 
 let doc_reg_info env global registers =
   let ctx = initial_context env global in
-
   let type_map = List.fold_left add_reg_typ Bindings.empty registers in
   let type_map = Bindings.bindings type_map in
-
   separate hardline
-    [
-      register_enums registers;
-      type_enum ctx registers;
-      string "abbrev SailM := PreSailM RegisterType";
-      empty;
-      string "open RegisterRef";
-      inhabit_enum ctx type_map;
-      empty;
-      empty;
-    ]
+    [register_enums registers; type_enum ctx registers; string "open RegisterRef"; inhabit_enum ctx type_map; empty]
+
+let doc_monad_abbrev (has_registers : bool) =
+  let pp_register_type = if has_registers then string "PreSailM RegisterType" else string "StateM Unit" in
+  separate space [string "abbrev"; string "SailM"; coloneq; pp_register_type] ^^ hardline ^^ hardline
 
 let pp_ast_lean (env : Type_check.env) effect_info ({ defs; _ } as ast : Libsail.Type_check.typed_ast) o =
   let defs = remove_imports defs 0 in
   let regs = State.find_registers defs in
   let global = { effect_info } in
-  let register_refs = match regs with [] -> empty | _ -> doc_reg_info env global regs in
+  let has_registers = List.length regs > 0 in
+  let register_refs = if has_registers then doc_reg_info env global regs else empty in
+  let monad = doc_monad_abbrev has_registers in
   let types, fundefs = doc_defs (initial_context env global) defs in
-  print o (types ^^ register_refs ^^ fundefs);
+  print o (types ^^ register_refs ^^ monad ^^ fundefs);
   ()

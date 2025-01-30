@@ -2,6 +2,8 @@ import Out.Sail.Sail
 
 open Sail
 
+abbrev SailM := StateM Unit
+
 def bitvector_eq (x : (BitVec 16)) (y : (BitVec 16)) : Bool :=
   (Eq x y)
 

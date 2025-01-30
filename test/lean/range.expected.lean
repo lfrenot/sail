@@ -2,6 +2,8 @@ import Out.Sail.Sail
 
 open Sail
 
+abbrev SailM := StateM Unit
+
 /-- Type quantifiers: x : Int, 0 ≤ x ∧ x ≤ 31 -/
 def f_int (x : Nat) : Int :=
   0

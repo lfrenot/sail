@@ -20,8 +20,6 @@ abbrev RegisterType : Register → Type
   | .R1 => (BitVec 64)
   | .R0 => (BitVec 64)
 
-abbrev SailM := PreSailM RegisterType
-
 open RegisterRef
 instance : Inhabited (RegisterRef RegisterType (BitVec 1)) where
   default := .Reg BIT
@@ -33,6 +31,7 @@ instance : Inhabited (RegisterRef RegisterType Int) where
   default := .Reg INT
 instance : Inhabited (RegisterRef RegisterType Nat) where
   default := .Reg NAT
+abbrev SailM := PreSailM RegisterType
 
 def test : SailM Int := do
   writeReg INT (HAdd.hAdd (← readReg INT) 1)

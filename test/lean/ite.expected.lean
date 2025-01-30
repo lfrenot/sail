@@ -12,13 +12,12 @@ abbrev RegisterType : Register → Type
   | .B => Bool
   | .R => Nat
 
-abbrev SailM := PreSailM RegisterType
-
 open RegisterRef
 instance : Inhabited (RegisterRef RegisterType Bool) where
   default := .Reg B
 instance : Inhabited (RegisterRef RegisterType Nat) where
   default := .Reg R
+abbrev SailM := PreSailM RegisterType
 
 /-- Type quantifiers: n : Int, 0 ≤ n -/
 def elif (n : Nat) : (BitVec 1) :=

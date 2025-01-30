@@ -21,6 +21,8 @@ inductive my_option where
 
 open my_option
 
+abbrev SailM := StateM Unit
+
 def undefined_rectangle (lit : Unit) : SailM rectangle := do
   (pure { width := (← sorry)
           height := (← sorry) })

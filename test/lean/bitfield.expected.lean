@@ -12,11 +12,10 @@ open Register
 abbrev RegisterType : Register → Type
   | .R => (BitVec 8)
 
-abbrev SailM := PreSailM RegisterType
-
 open RegisterRef
 instance : Inhabited (RegisterRef RegisterType (BitVec 8)) where
   default := .Reg R
+abbrev SailM := PreSailM RegisterType
 
 def undefined_cr_type (lit : Unit) : SailM (BitVec 8) := do
   sorry

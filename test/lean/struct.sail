@@ -7,8 +7,6 @@ struct My_struct = {
   field2 : bit,
 }
 
-register r : My_struct
-
 val struct_field2 : My_struct -> bit
 function struct_field2(s) = {
   s.field2

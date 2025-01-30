@@ -2,6 +2,8 @@ import Out.Sail.Sail
 
 open Sail
 
+abbrev SailM := StateM Unit
+
 def extern_const : (BitVec 64) :=
   (0xFFFF000012340000 : (BitVec 64))
 

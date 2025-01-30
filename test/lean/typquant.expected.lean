@@ -2,6 +2,8 @@ import Out.Sail.Sail
 
 open Sail
 
+abbrev SailM := StateM Unit
+
 /-- Type quantifiers: n : Int -/
 def foo (n : Int) : (BitVec 4) :=
   (0xF : (BitVec 4))
