@@ -6,7 +6,11 @@ section Regs
 variable {Register : Type} {RegisterType : Register → Type} [DecidableEq Register] [Hashable Register]
 
 /- The Units are placeholders for a future implementation of the state monad some Sail functions use. -/
-abbrev Error := Unit
+inductive Error : Type where
+  | Exit
+  | Unreachable
+  | Assertion (s : String)
+open Error
 
 structure SequentialState (RegisterType : Register → Type) where
   regs : Std.DHashMap Register RegisterType
@@ -24,7 +28,7 @@ def writeReg (r : Register) (v : RegisterType r) : PreSailM RegisterType Unit :=
 
 def readReg (r : Register) : PreSailM RegisterType (RegisterType r) := do
   let .some s := (← get).regs.get? r
-    | throw ()
+    | throw Unreachable
   pure s
 
 def readRegRef (reg_ref : @RegisterRef Register RegisterType α) : PreSailM RegisterType α := do
@@ -37,6 +41,8 @@ def writeRegRef (reg_ref : @RegisterRef Register RegisterType α) (a : α) :
 def reg_deref (reg_ref : @RegisterRef Register RegisterType α) := readRegRef reg_ref
 
 def vectorAccess [Inhabited α] (v : Vector α m) (n : Nat) := v[n]!
+
+def assert (p : Bool) (s : String) : PreSailM RegisterType Unit := if p then pure () else throw (Assertion s)
 
 end Regs
 

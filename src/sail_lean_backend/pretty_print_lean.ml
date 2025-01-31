@@ -441,6 +441,8 @@ and doc_exp (as_monadic : bool) ctx (E_aux (e, (l, annot)) as full_exp) =
       ^^ hardline
       ^^ nest 2 (string "else" ^^ space ^^ nest 3 (doc_exp statements_monadic ctx e))
   | E_ref id -> string "Reg " ^^ doc_id_ctor id
+  | E_exit _ -> string "throw Error.Exit"
+  | E_assert (e1, e2) -> string "assert " ^^ d_of_arg e1 ^^ space ^^ d_of_arg e2
   | _ -> failwith ("Expression " ^ string_of_exp_con full_exp ^ " " ^ string_of_exp full_exp ^ " not translatable yet.")
 
 and doc_fexp with_arrow ctx (FE_aux (FE_fexp (field, e), _)) = doc_id_ctor field ^^ string " := " ^^ doc_exp false ctx e
