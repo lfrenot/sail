@@ -8,7 +8,7 @@ open E
 
 abbrev SailM := StateM Unit
 
-def undefined_E : SailM E := do
+def undefined_E (lit : Unit) : SailM E := do
   sorry
 
 /-- Type quantifiers: arg_ : Int, 0 ≤ arg_ ∧ arg_ ≤ 2 -/
@@ -24,6 +24,6 @@ def num_of_E (arg_ : E) : Int :=
   | B => 1
   | C => 2
 
-def initialize_registers : Unit :=
+def initialize_registers (lit : Unit) : Unit :=
   ()
 

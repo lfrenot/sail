@@ -8,7 +8,7 @@ open E
 
 abbrev SailM := StateM Unit
 
-def undefined_E : SailM E := do
+def undefined_E (lit : Unit) : SailM E := do
   sorry
 
 def match_enum (x : E) : (BitVec 1) :=
@@ -33,6 +33,6 @@ def match_pair (arg0 : Int) (arg1 : Int) : Int :=
   match x with
   | (a, b) => (HAdd.hAdd a b)
 
-def initialize_registers : Unit :=
+def initialize_registers (lit : Unit) : Unit :=
   ()
 

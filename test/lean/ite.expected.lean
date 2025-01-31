@@ -42,7 +42,7 @@ def monadic_lines (n : Nat) : SailM Unit := do
        writeReg B b
   else writeReg B b
 
-def initialize_registers : SailM Unit := do
+def initialize_registers (lit : Unit) : SailM Unit := do
   writeReg R sorry
   writeReg B sorry
 

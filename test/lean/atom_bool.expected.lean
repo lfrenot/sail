@@ -4,9 +4,9 @@ open Sail
 
 abbrev SailM := StateM Unit
 
-def foo : Bool :=
+def foo (lit : Unit) : Bool :=
   true
 
-def initialize_registers : Unit :=
+def initialize_registers (lit : Unit) : Unit :=
   ()
 

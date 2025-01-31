@@ -52,6 +52,6 @@ def bitvector_unsigned (x : (BitVec 16)) : Nat :=
 def bitvector_signed (x : (BitVec 16)) : Int :=
   (BitVec.toInt x)
 
-def initialize_registers : Unit :=
+def initialize_registers (lit : Unit) : Unit :=
   ()
 

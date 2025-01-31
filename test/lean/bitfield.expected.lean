@@ -83,6 +83,6 @@ def _set_cr_type_LT (r_ref : RegisterRef RegisterType (BitVec 8)) (v : (BitVec 1
   let r := (← (reg_deref r_ref))
   writeRegRef r_ref (_update_cr_type_LT r v)
 
-def initialize_registers : SailM Unit := do
+def initialize_registers (lit : Unit) : SailM Unit := do
   writeReg R (← (undefined_cr_type ()))
 

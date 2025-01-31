@@ -33,11 +33,11 @@ instance : Inhabited (RegisterRef RegisterType Nat) where
   default := .Reg NAT
 abbrev SailM := PreSailM RegisterType
 
-def test : SailM Int := do
+def test (lit : Unit) : SailM Int := do
   writeReg INT (HAdd.hAdd (← readReg INT) 1)
   readReg INT
 
-def initialize_registers : SailM Unit := do
+def initialize_registers (lit : Unit) : SailM Unit := do
   writeReg R0 sorry
   writeReg R1 sorry
   writeReg INT sorry

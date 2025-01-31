@@ -24,11 +24,11 @@ open my_option
 abbrev SailM := StateM Unit
 
 def undefined_rectangle (lit : Unit) : SailM rectangle := do
-  (pure { width := (← sorry)
-          height := (← sorry) })
+  (pure { width := sorry
+          height := sorry })
 
 def undefined_circle (lit : Unit) : SailM circle := do
-  (pure { radius := (← sorry) })
+  (pure { radius := sorry })
 
 /-- Type quantifiers: k_a : Type -/
 def is_none (opt : my_option) : Bool :=
@@ -36,6 +36,6 @@ def is_none (opt : my_option) : Bool :=
   | MySome _ => false
   | MyNone () => true
 
-def initialize_registers : Unit :=
+def initialize_registers (lit : Unit) : Unit :=
   ()
 
