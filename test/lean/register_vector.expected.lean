@@ -96,7 +96,7 @@ def rX (n : Nat) : SailM (BitVec 64) := do
   then (reg_deref (vectorAccess GPRs n))
   else (pure (0x0000000000000000 : (BitVec 64)))
 
-def rPC : SailM (BitVec 64) := do
+def rPC (lit : Unit) : SailM (BitVec 64) := do
   readReg _PC
 
 def wPC (pc : (BitVec 64)) : SailM Unit := do
@@ -110,7 +110,7 @@ def monad_test (r : Nat) : SailM (BitVec 1) := do
        then (pure 1#1)
        else (pure 0#1)
 
-def initialize_registers : SailM Unit := do
+def initialize_registers (lit : Unit) : SailM Unit := do
   writeReg _PC sorry
   writeReg R30 sorry
   writeReg R29 sorry
